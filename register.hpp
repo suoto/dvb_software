@@ -21,9 +21,10 @@ using std::string;
 
 class RegisterMap {
  public:
-  void write( off_t offset, uint32_t data );
-  uint32_t read( off_t offset );
-  RegisterMap();  // This is the constructor
+  void write( uint8_t byte_offset, uint32_t data );
+  uint32_t read( uint8_t byte_offset );
+  RegisterMap();   // This is the constructor
+  ~RegisterMap();  // This is the destructor: declaration
  private:
   int fd;
   void* map;
@@ -31,7 +32,7 @@ class RegisterMap {
 
 // Member functions definitions including constructor
 RegisterMap::RegisterMap( void ) {
-  spdlog::trace( "Creating register map" );
+  spdlog::info( "Creating register map" );
   // Setup register map
   if ( ( this->fd = open( XDMA_USER, O_RDWR | O_SYNC ) ) == -1 ) FATAL;
   this->map =
@@ -41,14 +42,21 @@ RegisterMap::RegisterMap( void ) {
   spdlog::debug( "Memory mapped at address {:p}", this->map );
 };
 
-void RegisterMap::write( off_t offset, uint32_t data ) {
-  off_t* address = (off_t*)this->map + offset;
-  spdlog::trace( "[W] addr=0x{:X}, data=0x{:X}", offset, data );
-  ( *address ) = data;
+void RegisterMap::write( uint8_t byte_offset, uint32_t data ) {
+  uint32_t* byte_address = (uint32_t*)this->map + byte_offset;
+  spdlog::trace( "[W] addr=0x{:X}, data=0x{:X}", byte_offset, data );
+  ( *byte_address ) = data;
 };
-uint32_t RegisterMap::read( off_t offset ) {
-  off_t* address = (off_t*)this->map + offset;
-  uint32_t data = *( address );
-  spdlog::trace( "[R] addr=0x{:X}, data=0x{:X}", offset, data );
+
+uint32_t RegisterMap::read( uint8_t byte_offset ) {
+  uint32_t* byte_address = (uint32_t*)this->map + byte_offset;
+  uint32_t data = *( (uint32_t*)byte_address );
+  spdlog::trace( "[R] addr=0x{:X}, data=0x{:X}", byte_offset, data );
   return data;
+};
+
+RegisterMap::~RegisterMap() {
+  spdlog::info( "Unmapping and closing file descriptor" );
+  if ( munmap( map, MAP_SIZE ) == -1 ) FATAL;
+  close( fd );
 };
