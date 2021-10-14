@@ -17,7 +17,7 @@ OBJS=$(subst .cpp,.o,$(SRCS))
 
 all: dvb_sw_test
 
-dvb_sw_test: $(OBJS)
+dvb_sw_test: depend $(OBJS)
 	$(CXX) $(LDFLAGS) -o dvb_sw_test $(OBJS) $(LDLIBS)
 
 depend: .depend

@@ -1,4 +1,8 @@
 #pragma once
+#include <complex>
+#include <vector>
+
+#define GR_M_PI 3.14159265358979323846 /* pi */
 
 enum dvb_code_rate_t {
   C1_4 = 0,
@@ -88,3 +92,11 @@ typedef dvb_code_rate_t dvb_code_rate_t;
 typedef dvb_framesize_t dvb_framesize_t;
 typedef dvb_constellation_t dvb_constellation_t;
 // typedef dvb_guardinterval_t dvb_guardinterval_t;
+
+typedef std::complex< float > gr_complex;
+
+typedef struct FrameParameters {
+  dvb_code_rate_t code_rate;
+  dvb_framesize_t frame_size;
+  dvb_constellation_t constellation;
+} FrameParameters;
