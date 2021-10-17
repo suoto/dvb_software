@@ -19,7 +19,7 @@ using std::vector;
 #define XDMA_H2C_METADATA_DEV "/dev/xdma0_h2c_1"
 #define XDMA_C2H_DATA_DEV "/dev/xdma0_c2h_0"
 
-#define MAX_FRAME_LENGTH 64 * 1024
+#define MAX_FRAME_LENGTH 256 * 1024
 #define APERTURE_LENGTH 64
 
 #define FATAL                                                           \
@@ -94,7 +94,7 @@ void DvbEncoder::send_from_file( FrameParameters* parms, string filename ) {
 }
 
 void DvbEncoder::receive_frame( void ) {
-  SPDLOG_DEBUG( "Setting up data read" );
+  SPDLOG_DEBUG( "Receiving frame" );
   char* data = NULL;
   posix_memalign( (void**)&data, 4096 /*alignment */, MAX_FRAME_LENGTH + 4096 );
 
@@ -105,12 +105,17 @@ void DvbEncoder::receive_frame( void ) {
     ssize_t chunk_length =
         read_to_buffer( (char*)XDMA_C2H_DATA_DEV, fd, buf, APERTURE_LENGTH, 0 );
     buf += APERTURE_LENGTH;
-    outdata_length += chunk_length;
     SPDLOG_TRACE( "Got chunk length of {} bytes", chunk_length );
-    if ( chunk_length != APERTURE_LENGTH ) {
-      SPDLOG_DEBUG( "Read {} instead of {}, the frame has completed",
-                    chunk_length, APERTURE_LENGTH );
+    if ( chunk_length < 0 ) {
+      SPDLOG_ERROR( "Error reading data: {}", chunk_length );
       break;
+    } else {
+      outdata_length += chunk_length;
+      if ( chunk_length != APERTURE_LENGTH ) {
+        SPDLOG_DEBUG( "Read {} instead of {}, the frame has completed",
+                      chunk_length, APERTURE_LENGTH );
+        break;
+      };
     };
   };
   close( fd );
@@ -420,7 +425,8 @@ char get_metadata_value( FrameParameters* parms ) {
   };
 
   SPDLOG_ERROR(
-      "Unable to translate metadata value for framesize={}, constellation={}, "
+      "Unable to translate metadata value for framesize={}, "
+      "constellation={}, "
       "code rate={}",
       parms->frame_size, parms->constellation, parms->code_rate );
   return -1;

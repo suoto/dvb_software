@@ -107,7 +107,7 @@ int main( int argc, char* argv[] ) {
 
   string filename = argv[ 1 ];
   FrameParameters* parms = infer_parameters( filename );
-  std::cout << "Inferred frame parameters: " << format( parms ) << std::endl;
+  SPDLOG_INFO( "Inferred frame parameters: {}", format( parms ) );
 
   int loop_count = 1;
 
@@ -124,8 +124,7 @@ int main( int argc, char* argv[] ) {
   data |= ( 1 << 20 );
   regs->write( 0, data );
 
-  std::cout << "Config register: " << std::hex << regs->read( 0 )
-            << std::endl;
+  SPDLOG_DEBUG( "Config register: {:04X}", regs->read( 0 ) );
 
   DvbEncoder* encoder = new DvbEncoder();
 

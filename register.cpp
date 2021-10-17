@@ -156,9 +156,9 @@ std::vector< gr_complex > getModulationTable( dvb_constellation_t constellation,
             break;
         }
       }
-      r0 = sqrt( 4.0 / ( ( r1 * r1 ) + 3.0 * ( r2 * r2 ) ) );
-      r1 *= r0;
-      r2 *= r0;
+      // r0 = sqrt( 4.0 / ( ( r1 * r1 ) + 3.0 * ( r2 * r2 ) ) );
+      // r1 *= r0;
+      // r2 *= r0;
       return {gr_complex( ( r2 * cos( GR_M_PI / 4.0 ) ),
                           ( r2 * sin( GR_M_PI / 4.0 ) ) ),
               gr_complex( ( r2 * cos( -GR_M_PI / 4.0 ) ),
@@ -221,11 +221,12 @@ std::vector< gr_complex > getModulationTable( dvb_constellation_t constellation,
           r2 = 0;
           break;
       }
-      r0 =
-          sqrt( 8.0 / ( ( r1 * r1 ) + 3.0 * ( r2 * r2 ) + 4.0 * ( r3 * r3 ) ) );
-      r1 *= r0;
-      r2 *= r0;
-      r3 *= r0;
+      // r0 =
+      //     sqrt( 8.0 / ( ( r1 * r1 ) + 3.0 * ( r2 * r2 ) + 4.0 * ( r3 * r3 ) )
+      //     );
+      // r1 *= r0;
+      // r2 *= r0;
+      // r3 *= r0;
       return {gr_complex( ( r2 * cos( GR_M_PI / 4.0 ) ),
                           ( r2 * sin( GR_M_PI / 4.0 ) ) ),
               gr_complex( ( r2 * cos( 5 * GR_M_PI / 12.0 ) ),
@@ -296,7 +297,7 @@ std::vector< gr_complex > getModulationTable( dvb_constellation_t constellation,
 
   spdlog::error( "Unsupported constellation {}", constellation );
   return {};
-};
+}
 
 void RegisterMap::updateMappingTable( dvb_constellation_t constellation,
                                       dvb_framesize_t framesize,
@@ -304,25 +305,19 @@ void RegisterMap::updateMappingTable( dvb_constellation_t constellation,
   std::vector< gr_complex > table =
       getModulationTable( constellation, framesize, rate );
 
-  SPDLOG_DEBUG( "Modulation table:" );
-  for ( size_t i = 0; i < table.size(); i++ ) {
-    SPDLOG_DEBUG( "modulation[{}] = {}, {}", i, table[ i ].real(),
-                  table[ i ].imag() );
-  }
-
-  uint32_t offset = 0;
+  uint32_t offset = 0xC;
 
   switch ( constellation ) {
     case MOD_QPSK:
       break;
     case MOD_8PSK:
-      offset += 4;
+      offset += 4 * 4;
       break;
     case MOD_16APSK:
-      offset += 12;
+      offset += 12 * 4;
       break;
     case MOD_32APSK:
-      offset += 28;
+      offset += 28 * 4;
       break;
     default:
       break;
@@ -330,12 +325,15 @@ void RegisterMap::updateMappingTable( dvb_constellation_t constellation,
 
   SPDLOG_INFO( "Writing modulation table to offset 0x{:X}", offset );
 
-  offset += 0xC;
-
   for ( size_t i = 0; i < table.size(); i++ ) {
-    uint16_t real = ( uint16_t )( ( 1 << 15 ) * table[ i ].real() );
-    uint16_t imag = ( uint16_t )( ( 1 << 15 ) * table[ i ].imag() );
-    this->write( offset + 4 * i, imag | ( real << 16 ) );
+    uint16_t real = ( 1 << 15 ) * table[ i ].real();
+    uint16_t imag = ( 1 << 15 ) * table[ i ].imag();
+    if ( table[ i ].real() == 1.0 ) real -= 1;
+    if ( table[ i ].imag() == 1.0 ) imag -= 1;
+    SPDLOG_DEBUG(
+        "{:2d} addr={:04X} || ({: .4f}, {: .4f}) => (0x{:04X}, 0x{:04X})", i,
+        offset + 4 * i, table[ i ].real(), table[ i ].imag(), real, imag );
+    this->write( offset + 4 * i, (uint16_t)imag | ( (uint16_t)real << 16 ) );
   }
 };
 

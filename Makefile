@@ -20,7 +20,7 @@ OBJS=$(subst .cpp,.o,$(SRCS))
 
 all: dvb_sw_test
 
-dvb_sw_test: depend $(OBJS)
+dvb_sw_test: $(OBJS)
 	$(CXX) $(LDFLAGS) -o dvb_sw_test $(OBJS) $(LDLIBS)
 
 depend: .depend
@@ -99,5 +99,77 @@ FECFRAME_%: $(DATASET_PATH)
 	cp ~/phase4ground/dvb_fpga/gnuradio_data/$@/bb_header_output_packed.bin $(DATASET_PATH)/$@_input.bin
 	cp ~/phase4ground/dvb_fpga/gnuradio_data/$@/modulated_pilots_off_fixed_point.bin $(DATASET_PATH)/$@_output.bin
 
+TESTS := test_FECFRAME_SHORT_MOD_QPSK_C8_9 \
+				 test_FECFRAME_SHORT_MOD_QPSK_C5_6 \
+				 test_FECFRAME_SHORT_MOD_QPSK_C4_5 \
+				 test_FECFRAME_SHORT_MOD_QPSK_C3_5 \
+				 test_FECFRAME_SHORT_MOD_QPSK_C3_4 \
+				 test_FECFRAME_SHORT_MOD_QPSK_C2_5 \
+				 test_FECFRAME_SHORT_MOD_QPSK_C2_3 \
+				 test_FECFRAME_SHORT_MOD_QPSK_C1_4 \
+				 test_FECFRAME_SHORT_MOD_QPSK_C1_3 \
+				 test_FECFRAME_SHORT_MOD_QPSK_C1_2 \
+				 test_FECFRAME_SHORT_MOD_8PSK_C8_9 \
+				 test_FECFRAME_SHORT_MOD_8PSK_C5_6 \
+				 test_FECFRAME_SHORT_MOD_8PSK_C3_5 \
+				 test_FECFRAME_SHORT_MOD_8PSK_C3_4 \
+				 test_FECFRAME_SHORT_MOD_8PSK_C2_3 \
+				 test_FECFRAME_SHORT_MOD_32APSK_C8_9 \
+				 test_FECFRAME_SHORT_MOD_32APSK_C5_6 \
+				 test_FECFRAME_SHORT_MOD_32APSK_C4_5 \
+				 test_FECFRAME_SHORT_MOD_32APSK_C3_4 \
+				 test_FECFRAME_SHORT_MOD_16APSK_C8_9 \
+				 test_FECFRAME_SHORT_MOD_16APSK_C5_6 \
+				 test_FECFRAME_SHORT_MOD_16APSK_C4_5 \
+				 test_FECFRAME_SHORT_MOD_16APSK_C3_4 \
+				 test_FECFRAME_SHORT_MOD_16APSK_C2_3
+
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C9_10 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C8_9 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C5_6 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C4_5 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C3_5 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C3_4 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C2_5 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C2_3 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C1_4 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C1_3 \
+				 # test_FECFRAME_NORMAL_MOD_QPSK_C1_2 \
+				 # test_FECFRAME_NORMAL_MOD_8PSK_C9_10 \
+				 # test_FECFRAME_NORMAL_MOD_8PSK_C8_9 \
+				 # test_FECFRAME_NORMAL_MOD_8PSK_C5_6 \
+				 # test_FECFRAME_NORMAL_MOD_8PSK_C3_5 \
+				 # test_FECFRAME_NORMAL_MOD_8PSK_C3_4 \
+				 # test_FECFRAME_NORMAL_MOD_8PSK_C2_3 \
+				 # test_FECFRAME_NORMAL_MOD_32APSK_C9_10 \
+				 # test_FECFRAME_NORMAL_MOD_32APSK_C8_9 \
+				 # test_FECFRAME_NORMAL_MOD_32APSK_C5_6 \
+				 # test_FECFRAME_NORMAL_MOD_32APSK_C4_5 \
+				 # test_FECFRAME_NORMAL_MOD_32APSK_C3_4 \
+				 # test_FECFRAME_NORMAL_MOD_16APSK_C9_10 \
+				 # test_FECFRAME_NORMAL_MOD_16APSK_C8_9 \
+				 # test_FECFRAME_NORMAL_MOD_16APSK_C5_6 \
+				 # test_FECFRAME_NORMAL_MOD_16APSK_C4_5 \
+				 # test_FECFRAME_NORMAL_MOD_16APSK_C3_4 \
+				 # test_FECFRAME_NORMAL_MOD_16APSK_C2_3
+
+test_all: dvb_sw_test $(TESTS)
+
+test_qpsk: \
+	dvb_sw_test \
+	test_FECFRAME_SHORT_MOD_QPSK_C8_9 \
+	test_FECFRAME_SHORT_MOD_QPSK_C5_6 \
+	test_FECFRAME_SHORT_MOD_QPSK_C4_5 \
+	test_FECFRAME_SHORT_MOD_QPSK_C3_5 \
+	test_FECFRAME_SHORT_MOD_QPSK_C3_4 \
+	test_FECFRAME_SHORT_MOD_QPSK_C2_5 \
+	test_FECFRAME_SHORT_MOD_QPSK_C2_3 \
+	test_FECFRAME_SHORT_MOD_QPSK_C1_4 \
+	test_FECFRAME_SHORT_MOD_QPSK_C1_3 \
+	test_FECFRAME_SHORT_MOD_QPSK_C1_2
+
+test_FECFRAME_%:
+	./dvb_sw_test ~/data/FECFRAME_$*_input.bin 1
+	~/compare.py output.bin  ~/data/FECFRAME_$*_output.bin > /dev/null
 
 include .depend
