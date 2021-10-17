@@ -5,6 +5,7 @@
 #include <queue>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "dvb_types.hpp"
@@ -15,24 +16,29 @@ using std::string;
 using std::thread;
 using std::vector;
 
-typedef vector< uint8_t > frame;
+// typedef std::tuple< char*, ssize_t > frame;
+typedef std::pair< char*, ssize_t > frame;
 
 class DvbEncoder {
  public:
-  void send_frame( FrameParameters* parms, frame* frame );
+  void send_frame( FrameParameters* parms, char* data, ssize_t length );
+  void send_from_file( FrameParameters* parms, string filename );
   void join( void );
-  DvbEncoder();   // This is the constructor
-  // ~DvbEncoder();  // This is the destructor: declaration
+  void receive_frame( void );
+  DvbEncoder();  // This is the constructor
+                 // ~DvbEncoder();  // This is the destructor: declaration
  private:
   void send_metadata( FrameParameters* parms );
-  void send_data( frame *frame );
+  void send_data( frame* frame );
   int fd_outdata = -1;
   int fd_metadata = -1;
-  int fd_indata = -1;
+  // int fd_indata = -1;
 
   // queue< FrameParameters >* metadata_queue;
   queue< FrameParameters* >* metadata_queue;
   thread* metadata_thread;
   queue< frame* >* data_queue;
   thread* data_thread;
+
+  // thread* recv_thread;
 };

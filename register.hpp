@@ -22,8 +22,10 @@ using std::string;
 
 class RegisterMap {
  public:
-  void write( uint8_t byte_offset, uint32_t data );
-  uint32_t read( uint8_t byte_offset );
+  void write( uint16_t byte_offset, uint32_t data );
+  // void write( uint16_t byte_offset, uint16_t data );
+  // void write( uint16_t byte_offset, uint8_t data );
+  uint32_t read( uint16_t byte_offset );
   void updateMappingTable( dvb_constellation_t constellation,
                            dvb_framesize_t framesize, dvb_code_rate_t rate );
   RegisterMap();   // This is the constructor

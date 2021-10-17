@@ -1,5 +1,5 @@
 #include <sys/mman.h>
-#include <chrono>
+#include <fstream>
 #include <iostream>
 #include <queue>
 #include <string>
@@ -19,6 +19,9 @@ using std::vector;
 #define XDMA_H2C_METADATA_DEV "/dev/xdma0_h2c_1"
 #define XDMA_C2H_DATA_DEV "/dev/xdma0_c2h_0"
 
+#define MAX_FRAME_LENGTH 64 * 1024
+#define APERTURE_LENGTH 64
+
 #define FATAL                                                           \
   do {                                                                  \
     fprintf( stderr, "Error at line %d, file %s (%d) [%s]\n", __LINE__, \
@@ -28,60 +31,101 @@ using std::vector;
 
 // Member functions definitions including constructor
 DvbEncoder::DvbEncoder( void ) {
-  SPDLOG_INFO( "Creating data interface" );
+  SPDLOG_TRACE( "Creating data interface" );
 
   this->fd_outdata = open( XDMA_H2C_DATA_DEV, O_RDWR | O_NONBLOCK );
   this->fd_metadata = open( XDMA_H2C_METADATA_DEV, O_RDWR | O_NONBLOCK );
-  this->fd_indata = open( XDMA_C2H_DATA_DEV, O_RDWR | O_NONBLOCK );
+  // this->fd_indata = open( XDMA_C2H_DATA_DEV, O_RDWR | O_NONBLOCK );
   this->metadata_queue = new queue< FrameParameters* >();
   this->metadata_thread = new thread( [&]() {
-    SPDLOG_DEBUG( "Starting metadata thread" );
+    SPDLOG_TRACE( "Starting metadata thread" );
     while ( 1 ) {
       SPDLOG_DEBUG( "Waiting for metadata requests" );
       while ( this->metadata_queue->empty() ) {
         // SPDLOG_DEBUG( "Queue is empty" );
-      };
-      SPDLOG_DEBUG( "Metadata request received" );
+      }
+      SPDLOG_TRACE( "Metadata request received" );
       // FrameParameters parms = this->metadata_queue->back();
       this->send_metadata( this->metadata_queue->front() );
       this->metadata_queue->pop();
-      SPDLOG_DEBUG( "Exiting metadata thread" );
     }
+    SPDLOG_DEBUG( "Exiting metadata thread" );
   } );
+  this->metadata_thread->detach();
 
   this->data_queue = new queue< frame* >();
   this->data_thread = new thread( [&]() {
-    SPDLOG_DEBUG( "Starting data thread" );
+    SPDLOG_TRACE( "Starting data thread" );
     while ( 1 ) {
-      SPDLOG_DEBUG( "Waiting for data requests" );
+      SPDLOG_TRACE( "Waiting for data requests" );
       while ( this->data_queue->empty() ) {
         // SPDLOG_DEBUG( "Queue is empty" );
       };
-      SPDLOG_DEBUG( "Data request received" );
+      SPDLOG_TRACE( "Data request received" );
       // FrameParameters parms = this->data_queue->back();
       this->send_data( this->data_queue->front() );
       this->data_queue->pop();
-      SPDLOG_DEBUG( "Exiting data thread" );
     }
+    SPDLOG_DEBUG( "Exiting data thread" );
   } );
-
-  this->metadata_thread->detach();
   this->data_thread->detach();
 }
 
-void DvbEncoder::send_frame( FrameParameters* parms, frame* frame ) {
-  SPDLOG_INFO(
-      "Setting up transfer or {} bytes. Currently there are {} metadata "
-      "entries and {} data entries",
-      frame->size(), this->metadata_queue->size(), this->data_queue->size() );
+void DvbEncoder::send_frame( FrameParameters* parms, char* data,
+                             ssize_t length ) {
+  SPDLOG_INFO( "Setting up transfer for {} bytes. Queued: meta={} / data={}",
+               length, this->metadata_queue->size(), this->data_queue->size() );
   this->metadata_queue->push( parms );
-  this->data_queue->push( frame );
+  this->data_queue->push( new frame{data, length} );
+}
+
+void DvbEncoder::send_from_file( FrameParameters* parms, string filename ) {
+  std::ifstream istream( filename.c_str() );
+  std::string indata( ( std::istreambuf_iterator< char >( istream ) ),
+                      ( std::istreambuf_iterator< char >() ) );
+
+  SPDLOG_INFO( "Read {} bytes from \"{}\"", indata.size(), filename );
+  this->send_frame( parms, &indata[ 0 ], indata.size() );
+
+  SPDLOG_DEBUG( "Waiting for completion" );
+  // this->join();
+
+  // this->receive_frame();
+}
+
+void DvbEncoder::receive_frame( void ) {
+  SPDLOG_DEBUG( "Setting up data read" );
+  char* data = NULL;
+  posix_memalign( (void**)&data, 4096 /*alignment */, MAX_FRAME_LENGTH + 4096 );
+
+  int fd = open( XDMA_C2H_DATA_DEV, O_RDWR | O_NONBLOCK );
+  ssize_t outdata_length = 0;
+  char* buf = data;
+  while ( 1 ) {
+    ssize_t chunk_length =
+        read_to_buffer( (char*)XDMA_C2H_DATA_DEV, fd, buf, APERTURE_LENGTH, 0 );
+    buf += APERTURE_LENGTH;
+    outdata_length += chunk_length;
+    SPDLOG_TRACE( "Got chunk length of {} bytes", chunk_length );
+    if ( chunk_length != APERTURE_LENGTH ) {
+      SPDLOG_DEBUG( "Read {} instead of {}, the frame has completed",
+                    chunk_length, APERTURE_LENGTH );
+      break;
+    };
+  };
+  close( fd );
+
+  SPDLOG_INFO( "Out data has {} bytes", outdata_length );
+
+  FILE* fd_out = fopen( "output.bin", "w+" );  // O_RDWR | O_NONBLOCK );
+  fwrite( data, sizeof( char ), outdata_length, fd_out );
+  fclose( fd_out );
+
+  free( data );
 }
 
 void DvbEncoder::join( void ) {
   SPDLOG_INFO( "Joining existing threads" );
-  // this->metadata_thread->join();
-  // this->data_thread->join();
   while ( !this->metadata_queue->empty() ) {
   };
   while ( !this->data_queue->empty() ) {
@@ -89,11 +133,7 @@ void DvbEncoder::join( void ) {
   SPDLOG_INFO( "Completed" );
 };
 
-int get_metadata_value( FrameParameters* parms ) {
-  // if ( parms->frame_size == FECFRAME_SHORT ) {
-  //   return 0;
-  // };
-
+char get_metadata_value( FrameParameters* parms ) {
   if ( parms->frame_size == FECFRAME_SHORT ) {
     if ( parms->constellation == MOD_QPSK ) {
       if ( parms->code_rate == C1_4 ) {
@@ -387,37 +427,38 @@ int get_metadata_value( FrameParameters* parms ) {
 };
 
 void DvbEncoder::send_metadata( FrameParameters* parms ) {
-  // std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
-  int metadata = get_metadata_value( parms );
-  string data = std::to_string( metadata );
-  SPDLOG_DEBUG(
-      "Sending metadata for framesize={}, constellation={}, code rate={}, "
-      "metadata value is {}",
-      parms->frame_size, parms->constellation, parms->code_rate, metadata );
-  int rc = write_from_buffer( (char*)"metadata", this->fd_metadata,
-                              (char*)data.c_str(), 1, 0 );
-  SPDLOG_DEBUG( "Sending metadata completed, return code is {}", rc );
-  if ( rc != 1 ) {
-    SPDLOG_WARN(
+  char metadata_value = get_metadata_value( parms );
+  char* metadata = &metadata_value;
+  SPDLOG_INFO( "Sending metadata {} (0x{:02X}) for {}. Queued: {}",
+               (uint8_t)metadata_value, (uint8_t)metadata_value,
+               format( parms ), this->metadata_queue->size() );
+  int bytes_written =
+      write_from_buffer( (char*)"metadata", this->fd_metadata, metadata, 1, 0 );
+  SPDLOG_DEBUG( "Sending metadata completed, bytes written: {}",
+                bytes_written );
+  if ( bytes_written != 1 ) {
+    SPDLOG_ERROR(
         "Something went wrong, expected to have sent 1 byte but driver "
         "confirmed "
         "{}",
-        rc );
+        bytes_written );
+    FATAL;
   };
 };
 
-void DvbEncoder::send_data( frame* data ) {
-  SPDLOG_DEBUG( "Sending {} bytes of data", data->size() );
+void DvbEncoder::send_data( frame* frame ) {
+  SPDLOG_DEBUG( "Sending {} bytes of data. Queue size is {}", frame->second,
+                this->data_queue->size() );
 
-  ssize_t rc =
-      write_from_buffer( (char*)"data", this->fd_outdata, (char*)&data->at( 0 ),
-                         data->size() * sizeof( char ), 0 );
+  ssize_t rc = write_from_buffer( (char*)"data", this->fd_outdata, frame->first,
+                                  frame->second, 0 );
 
-  if ( rc != (ssize_t)data->size() ) {
-    SPDLOG_WARN(
+  if ( rc != (ssize_t)frame->second ) {
+    SPDLOG_ERROR(
         "Something went wrong, expected to have sent {} but driver confirmed "
         "{}",
-        data->size(), rc );
+        frame->second, rc );
+    FATAL;
   }
   SPDLOG_DEBUG( "Sending data completed, return code is {}", rc );
 };

@@ -9,7 +9,7 @@ using std::string;
 
 // Member functions definitions including constructor
 RegisterMap::RegisterMap( void ) {
-  SPDLOG_INFO( "Creating register map" );
+  SPDLOG_DEBUG( "Creating register map" );
   // Setup register map
   if ( ( this->fd = open( XDMA_USER, O_RDWR | O_SYNC ) ) == -1 ) FATAL;
   this->map =
@@ -20,21 +20,21 @@ RegisterMap::RegisterMap( void ) {
   this->writePolyphaseFilterCoefficients();
 };
 
-void RegisterMap::write( uint8_t byte_offset, uint32_t data ) {
-  uint32_t* byte_address = (uint32_t*)this->map + byte_offset;
+void RegisterMap::write( uint16_t byte_offset, uint32_t data ) {
+  uint32_t* byte_address = (uint32_t*)this->map + ( byte_offset >> 2 );
   spdlog::trace( "[W] addr=0x{:04X}, data=0x{:08X}", byte_offset, data );
   ( *byte_address ) = data;
 };
 
-uint32_t RegisterMap::read( uint8_t byte_offset ) {
-  uint32_t* byte_address = (uint32_t*)this->map + byte_offset;
+uint32_t RegisterMap::read( uint16_t byte_offset ) {
+  uint32_t* byte_address = (uint32_t*)this->map + ( byte_offset >> 2 );
   uint32_t data = *( (uint32_t*)byte_address );
   spdlog::trace( "[R] addr=0x{:04X}, data=0x{:08X}", byte_offset, data );
   return data;
 };
 
 RegisterMap::~RegisterMap() {
-  SPDLOG_INFO( "Unmapping and closing file descriptor" );
+  SPDLOG_DEBUG( "Unmapping and closing file descriptor" );
   if ( munmap( map, MAP_SIZE ) == -1 ) FATAL;
   close( fd );
 };
@@ -304,9 +304,9 @@ void RegisterMap::updateMappingTable( dvb_constellation_t constellation,
   std::vector< gr_complex > table =
       getModulationTable( constellation, framesize, rate );
 
-  SPDLOG_INFO( "Modulation table:" );
+  SPDLOG_DEBUG( "Modulation table:" );
   for ( size_t i = 0; i < table.size(); i++ ) {
-    SPDLOG_INFO( "modulation[{}] = {}, {}", i, table[ i ].real(),
+    SPDLOG_DEBUG( "modulation[{}] = {}, {}", i, table[ i ].real(),
                   table[ i ].imag() );
   }
 
@@ -335,7 +335,7 @@ void RegisterMap::updateMappingTable( dvb_constellation_t constellation,
   for ( size_t i = 0; i < table.size(); i++ ) {
     uint16_t real = ( uint16_t )( ( 1 << 15 ) * table[ i ].real() );
     uint16_t imag = ( uint16_t )( ( 1 << 15 ) * table[ i ].imag() );
-    this->write( offset + i, real | ( imag << 16 ) );
+    this->write( offset + 4 * i, imag | ( real << 16 ) );
   }
 };
 
@@ -356,9 +356,11 @@ void RegisterMap::writePolyphaseFilterCoefficients( void ) {
       -0.00029152361094,  0.00181682675611,  -0.000728216778953,
   };
 
-  uint32_t offset = 0x3CC;
+  const uint32_t offset = 0x3CC;
+  SPDLOG_INFO( "Writing polyphase filter coefficients to offset 0x{:X}",
+               offset );
   for ( size_t i = 0; i < 33; i++ ) {
     uint16_t fixed = ( uint16_t )( ( 1 << 15 ) * coeffs[ i ] );
-    this->write( offset + i, fixed | ( fixed << 16 ) );
+    this->write( offset + 4 * i, fixed | ( fixed << 16 ) );
   }
 }

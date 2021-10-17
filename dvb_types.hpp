@@ -96,7 +96,9 @@ typedef dvb_constellation_t dvb_constellation_t;
 typedef std::complex< float > gr_complex;
 
 typedef struct FrameParameters {
-  dvb_code_rate_t code_rate;
   dvb_framesize_t frame_size;
   dvb_constellation_t constellation;
+  dvb_code_rate_t code_rate;
 } FrameParameters;
+
+const std::string format( FrameParameters* parms );
