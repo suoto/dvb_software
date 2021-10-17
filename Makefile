@@ -8,6 +8,9 @@ LDLIBS=$(shell root-config --libs)
 # CPPFLAGS=-g -std=c++17 -Wall -Wextra -Werror -Wno-long-long -Wno-variadic-macros -fexceptions
 CPPFLAGS += -I third_party/spdlog/include
 CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
+# CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
+# CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO
+# CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_WARN
     # -DNDEBUG
     #  Just so we don't get warnings about unused variables
 
@@ -31,5 +34,70 @@ clean:
 
 distclean: clean
 	$(RM) *~ .depend
+
+SUPPORTED_CONFIGS := FECFRAME_SHORT_MOD_QPSK_C8_9 \
+										 FECFRAME_SHORT_MOD_QPSK_C5_6 \
+										 FECFRAME_SHORT_MOD_QPSK_C4_5 \
+										 FECFRAME_SHORT_MOD_QPSK_C3_5 \
+										 FECFRAME_SHORT_MOD_QPSK_C3_4 \
+										 FECFRAME_SHORT_MOD_QPSK_C2_5 \
+										 FECFRAME_SHORT_MOD_QPSK_C2_3 \
+										 FECFRAME_SHORT_MOD_QPSK_C1_4 \
+										 FECFRAME_SHORT_MOD_QPSK_C1_3 \
+										 FECFRAME_SHORT_MOD_QPSK_C1_2 \
+										 FECFRAME_SHORT_MOD_8PSK_C8_9 \
+										 FECFRAME_SHORT_MOD_8PSK_C5_6 \
+										 FECFRAME_SHORT_MOD_8PSK_C3_5 \
+										 FECFRAME_SHORT_MOD_8PSK_C3_4 \
+										 FECFRAME_SHORT_MOD_8PSK_C2_3 \
+										 FECFRAME_SHORT_MOD_32APSK_C8_9 \
+										 FECFRAME_SHORT_MOD_32APSK_C5_6 \
+										 FECFRAME_SHORT_MOD_32APSK_C4_5 \
+										 FECFRAME_SHORT_MOD_32APSK_C3_4 \
+										 FECFRAME_SHORT_MOD_16APSK_C8_9 \
+										 FECFRAME_SHORT_MOD_16APSK_C5_6 \
+										 FECFRAME_SHORT_MOD_16APSK_C4_5 \
+										 FECFRAME_SHORT_MOD_16APSK_C3_4 \
+										 FECFRAME_SHORT_MOD_16APSK_C2_3 \
+										 FECFRAME_NORMAL_MOD_QPSK_C9_10 \
+										 FECFRAME_NORMAL_MOD_QPSK_C8_9 \
+										 FECFRAME_NORMAL_MOD_QPSK_C5_6 \
+										 FECFRAME_NORMAL_MOD_QPSK_C4_5 \
+										 FECFRAME_NORMAL_MOD_QPSK_C3_5 \
+										 FECFRAME_NORMAL_MOD_QPSK_C3_4 \
+										 FECFRAME_NORMAL_MOD_QPSK_C2_5 \
+										 FECFRAME_NORMAL_MOD_QPSK_C2_3 \
+										 FECFRAME_NORMAL_MOD_QPSK_C1_4 \
+										 FECFRAME_NORMAL_MOD_QPSK_C1_3 \
+										 FECFRAME_NORMAL_MOD_QPSK_C1_2 \
+										 FECFRAME_NORMAL_MOD_8PSK_C9_10 \
+										 FECFRAME_NORMAL_MOD_8PSK_C8_9 \
+										 FECFRAME_NORMAL_MOD_8PSK_C5_6 \
+										 FECFRAME_NORMAL_MOD_8PSK_C3_5 \
+										 FECFRAME_NORMAL_MOD_8PSK_C3_4 \
+										 FECFRAME_NORMAL_MOD_8PSK_C2_3 \
+										 FECFRAME_NORMAL_MOD_32APSK_C9_10 \
+										 FECFRAME_NORMAL_MOD_32APSK_C8_9 \
+										 FECFRAME_NORMAL_MOD_32APSK_C5_6 \
+										 FECFRAME_NORMAL_MOD_32APSK_C4_5 \
+										 FECFRAME_NORMAL_MOD_32APSK_C3_4 \
+										 FECFRAME_NORMAL_MOD_16APSK_C9_10 \
+										 FECFRAME_NORMAL_MOD_16APSK_C8_9 \
+										 FECFRAME_NORMAL_MOD_16APSK_C5_6 \
+										 FECFRAME_NORMAL_MOD_16APSK_C4_5 \
+										 FECFRAME_NORMAL_MOD_16APSK_C3_4 \
+										 FECFRAME_NORMAL_MOD_16APSK_C2_3
+
+DATASET_PATH := $(PWD)/../dataset
+
+dataset: $(SUPPORTED_CONFIGS)
+
+data:
+	mkdir -p $(DATASET_PATH)
+
+FECFRAME_%: $(DATASET_PATH)
+	cp ~/phase4ground/dvb_fpga/gnuradio_data/$@/bb_header_output_packed.bin $(DATASET_PATH)/$@_input.bin
+	cp ~/phase4ground/dvb_fpga/gnuradio_data/$@/modulated_pilots_off_fixed_point.bin $(DATASET_PATH)/$@_output.bin
+
 
 include .depend
