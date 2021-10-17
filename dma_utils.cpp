@@ -30,17 +30,11 @@ ssize_t read_to_buffer( char* fname, int fd, char* buffer, uint64_t size,
   while ( count < size ) {
     uint64_t bytes = size - count;
 
-    printf( "count=%lu, bytes=%lu", count, bytes );
-
     if ( bytes > RW_MAX_SIZE ) {
       bytes = RW_MAX_SIZE;
-      printf( "; adjusted bytes to %lu", bytes );
     }
 
-    printf( "\n" );
-
     if ( offset ) {
-      printf( "Seeking to %lu", offset );
       rc = lseek( fd, offset, SEEK_SET );
       if ( rc != offset ) {
         fprintf( stderr, "%s, seek off 0x%lx != 0x%lx.\n", fname, rc, offset );
