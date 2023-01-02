@@ -1,4 +1,5 @@
 #include <sys/mman.h>
+
 #include <fstream>
 #include <string>
 #include <vector>
@@ -16,7 +17,8 @@
   } while ( 0 )
 
 FrameParameters* infer_parameters( string filename ) {
-  FrameParameters* params = new FrameParameters{FECFRAME_SHORT, MOD_QPSK, C1_4};
+  FrameParameters* params =
+      new FrameParameters{ FECFRAME_SHORT, MOD_QPSK, C1_4 };
 
   if ( filename.find( "C1_4" ) != string::npos ) {
     params->code_rate = C1_4;
@@ -119,10 +121,12 @@ int main( int argc, char* argv[] ) {
   RegisterMap* regs = new RegisterMap();
   regs->updateMappingTable( parms->constellation, parms->frame_size,
                             parms->code_rate );
-  uint32_t data = 1;
-  data |= ( 1 << 19 );
-  data |= ( 1 << 20 );
-  regs->write( 0, data );
+  // uint32_t data = 1;
+  // data |= ( 1 << 19 );
+  // data |= ( 1 << 20 );
+
+  // data |= ( 1 << 21 );
+  // regs->write( 0, data );
 
   SPDLOG_DEBUG( "Config register: {:04X}", regs->read( 0 ) );
 

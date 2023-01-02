@@ -1,6 +1,7 @@
 #pragma once
 
-#include <sys/mman.h>
+#include <arpa/inet.h>
+
 #include <iostream>
 #include <queue>
 #include <string>
@@ -28,15 +29,16 @@ class DvbEncoder {
   DvbEncoder();  // This is the constructor
                  // ~DvbEncoder();  // This is the destructor: declaration
  private:
-  void send_metadata( FrameParameters* parms );
+  int sock;
+  struct sockaddr_storage dest_addr;
+  // void send_metadata( FrameParameters* parms );
   void send_data( frame* frame );
   int fd_outdata = -1;
-  int fd_metadata = -1;
+  // int fd_metadata = -1;
   // int fd_indata = -1;
 
-  // queue< FrameParameters >* metadata_queue;
-  queue< FrameParameters* >* metadata_queue;
-  thread* metadata_thread;
+  // queue< FrameParameters* >* metadata_queue;
+  // thread* metadata_thread;
   queue< frame* >* data_queue;
   thread* data_thread;
 

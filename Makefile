@@ -6,7 +6,10 @@ LDFLAGS=-g $(shell root-config --ldflags)
 LDLIBS=$(shell root-config --libs)
 
 # CPPFLAGS=-g -std=c++17 -Wall -Wextra -Werror -Wno-long-long -Wno-variadic-macros -fexceptions
+# CPPFLAGS += -std=c++11
 CPPFLAGS += -I third_party/spdlog/include
+# CPPFLAGS += -I /usr/src/linux-hwe-5.11-headers-5.11.0-37/include/
+# CPPFLAGS += -I /home/souto/dev/dma_ip_drivers/XDMA/linux-kernel/include/
 CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
 # CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
 # CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO
