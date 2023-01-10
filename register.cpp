@@ -19,7 +19,7 @@ RegisterMap::RegisterMap( void ) {
   if ( this->map == (void*)-1 ) FATAL;
 
   SPDLOG_DEBUG( "Memory mapped at address {:p}", this->map );
-  this->writePolyphaseFilterCoefficients();
+  // this->writePolyphaseFilterCoefficients();
 };
 
 void RegisterMap::write( uint16_t byte_offset, uint32_t data ) {

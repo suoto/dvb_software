@@ -108,8 +108,8 @@ int main( int argc, char* argv[] ) {
   }
 
   string filename = argv[ 1 ];
-  FrameParameters* parms = infer_parameters( filename );
-  SPDLOG_INFO( "Inferred frame parameters: {}", format( parms ) );
+  // FrameParameters* parms = infer_parameters( filename );
+  // SPDLOG_INFO( "Inferred frame parameters: {}", format( parms ) );
 
   int loop_count = 1;
 
@@ -118,9 +118,9 @@ int main( int argc, char* argv[] ) {
   };
 
   // Setup register map
-  RegisterMap* regs = new RegisterMap();
-  regs->updateMappingTable( parms->constellation, parms->frame_size,
-                            parms->code_rate );
+  // RegisterMap* regs = new RegisterMap();
+  // regs->updateMappingTable( parms->constellation, parms->frame_size,
+  //                           parms->code_rate );
   // uint32_t data = 1;
   // data |= ( 1 << 19 );
   // data |= ( 1 << 20 );
@@ -128,7 +128,7 @@ int main( int argc, char* argv[] ) {
   // data |= ( 1 << 21 );
   // regs->write( 0, data );
 
-  SPDLOG_DEBUG( "Config register: {:04X}", regs->read( 0 ) );
+  // SPDLOG_DEBUG( "Config register: {:04X}", regs->read( 0 ) );
 
   DvbEncoder* encoder = new DvbEncoder();
 
@@ -138,13 +138,22 @@ int main( int argc, char* argv[] ) {
 
   SPDLOG_INFO( "Read {} bytes from \"{}\"", indata.size(), filename );
 
+  FrameParameters* parms =
+      new FrameParameters{ FECFRAME_SHORT, MOD_QPSK, C1_4 };
+  //   // infer_parameters( filename );
+  // typedef struct FrameParameters {
+  //   dvb_framesize_t frame_size;
+  //   dvb_constellation_t constellation;
+  //   dvb_code_rate_t code_rate;
+  // } FrameParameters;
+
   for ( int i = 0; i < loop_count; i++ ) {
-    // encoder->send_from_file( parms, filename );
-    encoder->send_frame( parms, &indata[ 0 ], indata.size() );
+    encoder->send_from_file( parms, filename );
+    // encoder->send_frame( 0, &indata[ 0 ], indata.size() );
     encoder->receive_frame();
   };
 
-  encoder->join();
+  // encoder->join();
 
   return 0;
 }
