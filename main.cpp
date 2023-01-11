@@ -1,13 +1,18 @@
 #include <sys/mman.h>
 
+#include <chrono>
 #include <fstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "dvb_encoder.hpp"
 #include "dvb_types.hpp"
 #include "register.hpp"
 #include "spdlog/spdlog.h"
+
+using std::thread;
+using namespace std::chrono_literals;
 
 #define FATAL                                                           \
   do {                                                                  \
@@ -117,19 +122,8 @@ int main( int argc, char* argv[] ) {
     loop_count = std::stoi( argv[ 2 ] );
   };
 
-  // Setup register map
-  // RegisterMap* regs = new RegisterMap();
-  // regs->updateMappingTable( parms->constellation, parms->frame_size,
-  //                           parms->code_rate );
-  // uint32_t data = 1;
-  // data |= ( 1 << 19 );
-  // data |= ( 1 << 20 );
-
-  // data |= ( 1 << 21 );
-  // regs->write( 0, data );
-
-  // SPDLOG_DEBUG( "Config register: {:04X}", regs->read( 0 ) );
-
+  // TODO: setup a thread for the receiver side and make the encoder receive a
+  // callback to be called when data is received
   DvbEncoder* encoder = new DvbEncoder();
 
   std::ifstream istream( filename.c_str() );
@@ -139,7 +133,7 @@ int main( int argc, char* argv[] ) {
   SPDLOG_INFO( "Read {} bytes from \"{}\"", indata.size(), filename );
 
   FrameParameters* parms =
-      new FrameParameters{ FECFRAME_SHORT, MOD_QPSK, C1_4 };
+      new FrameParameters{ FECFRAME_SHORT, MOD_QPSK, C1_3 };
   //   // infer_parameters( filename );
   // typedef struct FrameParameters {
   //   dvb_framesize_t frame_size;
@@ -147,11 +141,37 @@ int main( int argc, char* argv[] ) {
   //   dvb_code_rate_t code_rate;
   // } FrameParameters;
 
+  thread* recv_thread;
+  recv_thread = new thread( [ & ]() {
+    SPDLOG_DEBUG( "Starting receive thread" );
+    int frame_count = 0;
+    while ( 1 ) {
+      encoder->receive_frame();
+      SPDLOG_DEBUG( "Received frame {}", frame_count );
+      frame_count++;
+    };
+
+    // uint32_t fifo_entries = 0;
+    // do {
+    //   fifo_entries = regs->read( 0x2000 );
+    //   SPDLOG_DEBUG( "FIFO entries: {}", fifo_entries );
+    // } while ( fifo_entries != 557 );
+    SPDLOG_DEBUG( "Exiting receive thread" );
+  } );
+  // recv_thread->detach();
+
   for ( int i = 0; i < loop_count; i++ ) {
     encoder->send_from_file( parms, filename );
     // encoder->send_frame( 0, &indata[ 0 ], indata.size() );
-    encoder->receive_frame();
   };
+  SPDLOG_INFO( "Waiting for receive thread to complete" );
+  // std::this_thread::sleep_for( 2000ms );
+  recv_thread->join();
+  // // Setup register map
+  // RegisterMap* regs = new RegisterMap();
+
+  // SPDLOG_DEBUG( "FIFO entries: {}", regs->read( 0x2000 ) );
+  SPDLOG_INFO( "Done" );
 
   // encoder->join();
 

@@ -5,8 +5,10 @@
 #include <netdb.h>
 
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <queue>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -25,7 +27,7 @@ using std::vector;
 #define XDMA_C2H_DATA_DEV "/dev/xdma0_c2h_0"
 
 #define MAX_FRAME_LENGTH 256 * 1024
-#define APERTURE_LENGTH 64
+#define APERTURE_LENGTH 1024
 
 #define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 #define MAX( a, b ) ( ( a ) > ( b ) ? ( a ) : ( b ) )
@@ -492,6 +494,29 @@ ssize_t get_bb_frame_length( FrameParameters* parms ) {
   return -1;
 }
 
+std::string pformat( char* data, size_t size ) {
+  std::ostringstream s;
+  const auto save = s.flags();
+  for ( size_t i = 0; i < size; i++ ) {
+    // const auto value = data[ i ];
+    // std::cout << value;
+    s << std::hex << std::setw( 2 ) << std::setfill( '0' )
+      << ( data[ i ] & 0xFF );
+    if ( ( i + 1 ) % 32 == 0 )
+      s << "\n";
+    else {
+      if ( ( i + 1 ) % 8 == 0 ) s << " ";
+      s << " ";
+    }
+  };
+  s.flags( save );
+  return s.str();
+}
+
+std::string pformat( std::vector< char >* data ) {
+  return pformat( reinterpret_cast< char* >( &data[ 0 ] ), data->size() );
+};
+
 void DvbEncoder::send_from_file( FrameParameters* parms, string filename ) {
   //   std::ifstream fin("C:\\file.txt", std::ifstream::binary);
   //
@@ -500,44 +525,45 @@ void DvbEncoder::send_from_file( FrameParameters* parms, string filename ) {
   //                     ( std::istreambuf_iterator< char >() ) );
   char metadata = get_metadata_value( parms );
   ssize_t bb_frame_length = get_bb_frame_length( parms );
-  SPDLOG_INFO( "Metadata value for {}: 0x{:x}", format( parms ), metadata );
+  SPDLOG_INFO( "Metadata value for {}: 0x{:x}. Frame length is {}",
+               format( parms ), metadata, bb_frame_length );
   std::ifstream istream( filename.c_str(), std::ifstream::binary );
   std::vector< char > buffer( bb_frame_length, 0 );
-  SPDLOG_DEBUG( "Buffer size: {}", buffer.size() );
-  buffer[ 0 ] = metadata;
-  std::streamsize length = 0;
-  // int i = 0;
+  for ( auto i = 0; i < 4; i++ ) buffer[ i ] = metadata;
+  std::streamsize bytes_read = 0;
+  int i = 0;
   bool has_metadata = true;
   while ( !istream.eof() ) {
     // First pass has metadata inserted as first byte of the buffer
-    int size = 0;
+    int frame_size = 0;
     if ( has_metadata ) {
-      istream.read( buffer.data() + 1, buffer.size() - 1 );
-      size = 1;
-      length += istream.gcount() + 1;
+      istream.read( buffer.data() + 4, buffer.size() - 4 );
+      frame_size = 4;
+      bytes_read += istream.gcount() + 4;
     } else {
       istream.read( buffer.data(), buffer.size() );
     }
-    size += istream.gcount();
+    frame_size += istream.gcount();
     has_metadata = false;
 
-    // SPDLOG_DEBUG(
-    //     "[{}] {}: read {} bytes, total {}. Data => {:x} {:x} {:x} {:x} ..
-    //     {:x} "
-    //     "{:x} {:x} {:x}",
-    //     i, filename, istream.gcount(), length, buffer[ 0 ], buffer[ 1 ],
-    //     buffer[ 2 ], buffer[ 3 ], buffer[ 696 ], buffer[ 697 ], buffer[ 698
-    //     ], buffer[ 699 ] );
+    SPDLOG_DEBUG(
+        "[{}] {}: read {} bytes, total {}. Data => {:x} {:x} {:x} {:x} .. {:x} "
+        "{:x} {:x} {:x}",
+        i, filename, istream.gcount(), bytes_read, buffer[ 0 ], buffer[ 1 ],
+        buffer[ 2 ], buffer[ 3 ], buffer[ 696 ], buffer[ 697 ], buffer[ 698 ],
+        buffer[ 699 ] );
+
     // SPDLOG_DEBUG( "Output data" );
-    // for ( auto j = 0; j < size; j++ ) {
-    //   SPDLOG_DEBUG( "[{}] 0x{:X}", j, unsigned( buffer[ j ] ) & 0xff );
+    SPDLOG_DEBUG( "Output data;\n{}", pformat( &buffer ) );
+    // for ( auto j = 0; j < frame_size; j++ ) {
+    //   SPDLOG_TRACE( "[{}] 0x{:X}", j, unsigned( buffer[ j ] ) & 0xff );
     // };
 
-    this->send_data( &buffer[ 0 ], size );
-    // i++;
+    this->send_data( &buffer[ 0 ], frame_size );
+    i++;
   }
 
-  SPDLOG_INFO( "Read {} bytes from \"{}\"", length, filename );
+  SPDLOG_INFO( "Read {} bytes from \"{}\"", bytes_read, filename );
   // this->send_frame( metadata, &indata[ 0 ], indata.size() );
 
   // SPDLOG_DEBUG( "Waiting for completion" );
@@ -558,9 +584,11 @@ void DvbEncoder::receive_frame( void ) {
     ssize_t chunk_length =
         read_to_buffer( (char*)XDMA_C2H_DATA_DEV, fd, buf, APERTURE_LENGTH, 0 );
     buf += APERTURE_LENGTH;
-    SPDLOG_TRACE( "Got chunk length of {} bytes", chunk_length );
+    SPDLOG_TRACE( "Got chunk length of {} bytes. Total so far: {}\n{}",
+                  chunk_length, outdata_length, pformat( data, chunk_length ) );
     if ( chunk_length < 0 ) {
       SPDLOG_ERROR( "Error reading data: {}", chunk_length );
+      FATAL;
       break;
     } else {
       outdata_length += chunk_length;
