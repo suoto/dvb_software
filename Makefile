@@ -10,10 +10,10 @@ LDLIBS=$(shell root-config --libs)
 CPPFLAGS += -I third_party/spdlog/include
 # CPPFLAGS += -I /usr/src/linux-hwe-5.11-headers-5.11.0-37/include/
 # CPPFLAGS += -I /home/souto/dev/dma_ip_drivers/XDMA/linux-kernel/include/
-CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
+# CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE
 # CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG
 # CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO
-# CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_WARN
+CPPFLAGS += -DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_WARN
     # -DNDEBUG
     #  Just so we don't get warnings about unused variables
 

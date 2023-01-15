@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <netdb.h>
+#include <sys/ioctl.h>
 
 #include <fstream>
 #include <iomanip>
@@ -12,11 +13,15 @@
 #include <string>
 #include <vector>
 
+#include "cdev_sgdma.h"
 #include "dma_utils.hpp"
 #include "dvb_types.hpp"
 #include "spdlog/spdlog.h"
+
 // #include <iostream>
 // #include <thread>
+//
+#include <sys/poll.h>
 
 using std::queue;
 using std::string;
@@ -26,8 +31,10 @@ using std::vector;
 #define XDMA_H2C_METADATA_DEV "/dev/xdma0_h2c_1"
 #define XDMA_C2H_DATA_DEV "/dev/xdma0_c2h_0"
 
-#define MAX_FRAME_LENGTH 256 * 1024
-#define APERTURE_LENGTH 1024
+// #define MAX_FRAME_LENGTH 256 * 1024
+#define MAX_FRAME_LENGTH 86760
+
+#define SEND_UDP 0
 
 #define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 #define MAX( a, b ) ( ( a ) > ( b ) ? ( a ) : ( b ) )
@@ -41,6 +48,31 @@ using std::vector;
     exit( 1 );                                                          \
   } while ( 0 )
 
+void foo() {
+  int fd = open( XDMA_H2C_DATA_DEV, O_RDWR | O_NONBLOCK );
+  struct pollfd pfd;
+  pfd.events = POLLIN;
+  pfd.fd = fd;
+  pfd.events = POLLIN;
+
+  int rc = poll( &pfd, 1, 1 );
+
+  if ( rc < 0 ) {
+    SPDLOG_ERROR( "poll() failed with rc={}", rc );
+    FATAL;
+  }
+
+  if ( rc == 0 ) {
+    SPDLOG_INFO( "poll() timed out" );
+  }
+
+  SPDLOG_INFO( "pfd.revents={}", pfd.revents );
+
+  if ( pfd.revents != POLLIN ) {
+    SPDLOG_WARN( "Expected POLLIN, but got {}", pfd.revents );
+  }
+};
+
 int resolve( const char* hostname, int family, const char* service,
              sockaddr_storage* pAddr ) {
   int result;
@@ -51,6 +83,7 @@ int resolve( const char* hostname, int family, const char* service,
       SOCK_DGRAM;  // without this flag, getaddrinfo will return 3x the number
                    // of addresses (one for each socket type).
   result = getaddrinfo( hostname, service, &hints, &result_list );
+  SPDLOG_INFO( "getaddrinfo returned {}", result );
   if ( result == 0 ) {
     // ASSERT(result_list->ai_addrlen <= sizeof(sockaddr_in));
     memcpy( pAddr, result_list->ai_addr, result_list->ai_addrlen );
@@ -64,42 +97,10 @@ int resolve( const char* hostname, int family, const char* service,
 DvbEncoder::DvbEncoder( void ) {
   SPDLOG_TRACE( "Creating data interface" );
 
+  this->fd_indata = open( XDMA_C2H_DATA_DEV, O_RDWR | O_NONBLOCK );
   this->fd_outdata = open( XDMA_H2C_DATA_DEV, O_RDWR | O_NONBLOCK );
-  // this->fd_metadata = open( XDMA_H2C_METADATA_DEV, O_RDWR | O_NONBLOCK );
-  // this->fd_indata = open( XDMA_C2H_DATA_DEV, O_RDWR | O_NONBLOCK );
-  // this->metadata_queue = new queue< FrameParameters* >();
-  // this->metadata_thread = new thread( [ & ]() {
-  //   SPDLOG_TRACE( "Starting metadata thread" );
-  //   while ( 1 ) {
-  //     SPDLOG_DEBUG( "Waiting for metadata requests" );
-  //     while ( this->metadata_queue->empty() ) {
-  //       // SPDLOG_DEBUG( "Queue is empty" );
-  //     }
-  //     SPDLOG_TRACE( "Metadata request received" );
-  //     // FrameParameters parms = this->metadata_queue->back();
-  //     this->send_metadata( this->metadata_queue->front() );
-  //     this->metadata_queue->pop();
-  //   }
-  //   SPDLOG_DEBUG( "Exiting metadata thread" );
-  // } );
-  // this->metadata_thread->detach();
-
-  // this->data_queue = new queue< frame* >();
-  // this->data_thread = new thread( [ & ]() {
-  //   SPDLOG_TRACE( "Starting data thread" );
-  //   while ( 1 ) {
-  //     SPDLOG_TRACE( "Waiting for data requests" );
-  //     while ( this->data_queue->empty() ) {
-  //       // SPDLOG_DEBUG( "Queue is empty" );
-  //     };
-  //     SPDLOG_TRACE( "Data request received" );
-  //     // FrameParameters parms = this->data_queue->back();
-  //     this->send_data( this->data_queue->front() );
-  //     this->data_queue->pop();
-  //   }
-  //   SPDLOG_DEBUG( "Exiting data thread" );
-  // } );
-  // this->data_thread->detach();
+  posix_memalign( (void**)&this->indata_buffer, 4096 /*alignment */,
+                  MAX_FRAME_LENGTH + 4096 );
 
   this->sock = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
   memset( &this->dest_addr, 0, sizeof( this->dest_addr ) );
@@ -109,10 +110,14 @@ DvbEncoder::DvbEncoder( void ) {
     SPDLOG_ERROR( "Error resolving address: {}", lasterror );
     exit( 1 );
   }
-  // this->dest_addr.sin_family = AF_INET;
-  // this->dest_addr.sin_addr.s_addr = inet_addr( "192.168.1.135" );
-  // this->dest_addr.sin_port = htons( 5000 );
 }
+
+DvbEncoder::~DvbEncoder( void ) {
+  SPDLOG_WARN( "Closing FDs" );
+  close( this->fd_indata );
+  close( this->fd_outdata );
+  free( this->indata_buffer );
+};
 
 char get_metadata_value( FrameParameters* parms ) {
   if ( parms->frame_size == FECFRAME_SHORT ) {
@@ -494,201 +499,152 @@ ssize_t get_bb_frame_length( FrameParameters* parms ) {
   return -1;
 }
 
-std::string pformat( char* data, size_t size ) {
+#define COLUMNS 32
+
+string format( char* data, size_t size ) {
+  size_t size_adj = MIN( size, 256 );
+  if ( size != size_adj )
+    SPDLOG_TRACE( "Size {} is too big, adjusting to {}", size, size_adj );
   std::ostringstream s;
   const auto save = s.flags();
-  for ( size_t i = 0; i < size; i++ ) {
+  s << "      | ";
+  for ( int i = 0; i < COLUMNS; i++ ) {
+    if ( i ) {
+      if ( i % 8 == 0 ) s << " ";
+    };
+    s << std::setw( 2 ) << std::setfill( ' ' ) << i << ' ';
+  };
+  s << "\n" << std::setw( 5 ) << 0 << " | ";
+  for ( size_t i = 0; i < size_adj; i++ ) {
+    if ( i ) {
+      if ( i % COLUMNS == 0 )
+        s << "\n"
+          << std::setw( 5 ) << std::dec << std::setfill( ' ' ) << i << " | ";
+      else {
+        if ( i % 8 == 0 ) s << " ";
+        s << " ";
+      };
+    };
     // const auto value = data[ i ];
     // std::cout << value;
-    s << std::hex << std::setw( 2 ) << std::setfill( '0' )
-      << ( data[ i ] & 0xFF );
-    if ( ( i + 1 ) % 32 == 0 )
-      s << "\n";
-    else {
-      if ( ( i + 1 ) % 8 == 0 ) s << " ";
-      s << " ";
-    }
+    s << std::hex << std::setw( 2 ) << std::setfill( '0' ) << ( *data & 0xFF );
+    data++;
   };
+  if ( size != size_adj )
+    s << "\n(" << std::dec << size - size_adj << " bytes omitted)";
   s.flags( save );
   return s.str();
 }
+string format( std::vector< char >* data ) {
+  string s( data->begin(), data->end() );
+  return format( (char*)s.c_str(), s.size() );
+}
+string format( std::vector< char >* data, size_t size ) {
+  string s( data->begin(), data->begin() + size );
+  return format( (char*)s.c_str(), s.size() );
+}
 
-std::string pformat( std::vector< char >* data ) {
-  return pformat( reinterpret_cast< char* >( &data[ 0 ] ), data->size() );
-};
-
-void DvbEncoder::send_from_file( FrameParameters* parms, string filename ) {
-  //   std::ifstream fin("C:\\file.txt", std::ifstream::binary);
-  //
-  // std::ifstream istream( filename.c_str() );
-  // std::string indata( ( std::istreambuf_iterator< char >( istream ) ),
-  //                     ( std::istreambuf_iterator< char >() ) );
+int DvbEncoder::send_from_file( FrameParameters* parms, string filename ) {
   char metadata = get_metadata_value( parms );
-  ssize_t bb_frame_length = get_bb_frame_length( parms );
-  SPDLOG_INFO( "Metadata value for {}: 0x{:x}. Frame length is {}",
-               format( parms ), metadata, bb_frame_length );
+  ssize_t bb_frame_length = get_bb_frame_length( parms ) + 4;
+  SPDLOG_INFO( "Metadata value for {}: 0x{:2x} / {:d}. Frame length is {}",
+               format( parms ), metadata, metadata, bb_frame_length );
+
   std::ifstream istream( filename.c_str(), std::ifstream::binary );
   std::vector< char > buffer( bb_frame_length, 0 );
+
   for ( auto i = 0; i < 4; i++ ) buffer[ i ] = metadata;
   std::streamsize bytes_read = 0;
-  int i = 0;
-  bool has_metadata = true;
+  int outframes = 0;
   while ( !istream.eof() ) {
     // First pass has metadata inserted as first byte of the buffer
-    int frame_size = 0;
-    if ( has_metadata ) {
-      istream.read( buffer.data() + 4, buffer.size() - 4 );
-      frame_size = 4;
-      bytes_read += istream.gcount() + 4;
-    } else {
-      istream.read( buffer.data(), buffer.size() );
-    }
-    frame_size += istream.gcount();
-    has_metadata = false;
+    istream.read( buffer.data() + 4, buffer.size() - 4 );
+    bytes_read += istream.gcount();
+    int frame_size = istream.gcount() + 4;
 
-    SPDLOG_DEBUG(
-        "[{}] {}: read {} bytes, total {}. Data => {:x} {:x} {:x} {:x} .. {:x} "
-        "{:x} {:x} {:x}",
-        i, filename, istream.gcount(), bytes_read, buffer[ 0 ], buffer[ 1 ],
-        buffer[ 2 ], buffer[ 3 ], buffer[ 696 ], buffer[ 697 ], buffer[ 698 ],
-        buffer[ 699 ] );
+    SPDLOG_DEBUG( "[{}] {}: read {} bytes, total {}", outframes, filename,
+                  istream.gcount(), bytes_read );
 
-    // SPDLOG_DEBUG( "Output data" );
-    SPDLOG_DEBUG( "Output data;\n{}", pformat( &buffer ) );
-    // for ( auto j = 0; j < frame_size; j++ ) {
-    //   SPDLOG_TRACE( "[{}] 0x{:X}", j, unsigned( buffer[ j ] ) & 0xff );
-    // };
+    SPDLOG_TRACE( "Output data;\n{}", format( &buffer, frame_size ) );
 
     this->send_data( &buffer[ 0 ], frame_size );
-    i++;
+    outframes++;
   }
 
   SPDLOG_INFO( "Read {} bytes from \"{}\"", bytes_read, filename );
   // this->send_frame( metadata, &indata[ 0 ], indata.size() );
+  return outframes;
 
   // SPDLOG_DEBUG( "Waiting for completion" );
   // this->join();
-
-  // this->receive_frame();
 }
 
 void DvbEncoder::receive_frame( void ) {
   SPDLOG_DEBUG( "Receiving frame" );
-  char* data = NULL;
-  posix_memalign( (void**)&data, 4096 /*alignment */, MAX_FRAME_LENGTH + 4096 );
 
-  int fd = open( XDMA_C2H_DATA_DEV, O_RDWR | O_NONBLOCK );
-  ssize_t outdata_length = 0;
-  char* buf = data;
-  while ( 1 ) {
-    ssize_t chunk_length =
-        read_to_buffer( (char*)XDMA_C2H_DATA_DEV, fd, buf, APERTURE_LENGTH, 0 );
-    buf += APERTURE_LENGTH;
-    SPDLOG_TRACE( "Got chunk length of {} bytes. Total so far: {}\n{}",
-                  chunk_length, outdata_length, pformat( data, chunk_length ) );
-    if ( chunk_length < 0 ) {
-      SPDLOG_ERROR( "Error reading data: {}", chunk_length );
-      FATAL;
-      break;
-    } else {
-      outdata_length += chunk_length;
-      if ( chunk_length != APERTURE_LENGTH ) {
-        SPDLOG_DEBUG( "Read {} instead of {}, the frame has completed",
-                      chunk_length, APERTURE_LENGTH );
-        break;
-      };
-    };
+  ssize_t length = read_to_buffer( (char*)XDMA_C2H_DATA_DEV, this->fd_indata,
+                                   this->indata_buffer, MAX_FRAME_LENGTH, 0 );
+  SPDLOG_DEBUG( "Received {} bytes", length );
+  SPDLOG_TRACE( "Data received:\n{}", format( this->indata_buffer, length ) );
+  if ( length < 0 ) {
+    SPDLOG_ERROR( "Error reading data: {}", length );
+    FATAL;
   };
-  close( fd );
 
-  SPDLOG_INFO( "Out data has {} bytes", outdata_length );
+  return;
 
-  SPDLOG_INFO( "Sending out data via UDP" );
-  // Send the data
-  int udp_bytes_sent;
-  // int udp_bytes_remaining = outdata_length;
-  // while ( udp_bytes_remaining ) {
-  //   udp_bytes_sent = sendto(
-  //       this->sock, data, MIN( outdata_length, MAX_UDP_PAYLOAD_LENGTH ), 0,
-  //       (struct sockaddr*)&this->dest_addr, sizeof( this->dest_addr ) );
+  if ( SEND_UDP ) {
+    SPDLOG_DEBUG( "Sending out data via UDP" );
+    // Send the data
+    int udp_bytes_sent;
+    int udp_bytes_remaining = length;
+    while ( udp_bytes_remaining ) {
+      udp_bytes_sent = sendto( this->sock, this->indata_buffer,
+                               MIN( length, MAX_UDP_PAYLOAD_LENGTH ), 0,
+                               (struct sockaddr*)&this->dest_addr,
+                               sizeof( this->dest_addr ) );
 
-  //   udp_bytes_remaining = MAX( udp_bytes_remaining - udp_bytes_sent, 0 );
+      if ( udp_bytes_sent < 0 ) {
+        SPDLOG_ERROR( "Sending UDP data failed" );
+        FATAL;
+      }
 
-  //   SPDLOG_INFO( "UDP bytes sent: {}, remaining {}", udp_bytes_sent,
-  //                udp_bytes_remaining );
-  // };
+      udp_bytes_remaining = MAX( udp_bytes_remaining - udp_bytes_sent, 0 );
 
-  udp_bytes_sent =
-      sendto( this->sock, data, outdata_length, 0,
-              (struct sockaddr*)&this->dest_addr, sizeof( this->dest_addr ) );
-  SPDLOG_INFO( "UDP bytes sent: {}", udp_bytes_sent );
+      // SPDLOG_DEBUG( "UDP bytes sent: {}, remaining {}", udp_bytes_sent,
+      //               udp_bytes_remaining );
+    }
+  };
 
-  SPDLOG_INFO( "Writing out data to output.bin" );
-  FILE* fd_out = fopen( "output.bin", "w+" );  // O_RDWR | O_NONBLOCK );
-  fwrite( data, sizeof( char ), outdata_length, fd_out );
-  fclose( fd_out );
+  // udp_bytes_sent =
+  //     sendto( this->sock, indata_buffer, length, 0, (struct
+  //     sockaddr*)&this->dest_addr,
+  //             sizeof( this->dest_addr ) );
+  // SPDLOG_INFO( "UDP bytes sent: {}", udp_bytes_sent );
+  // if ( udp_bytes_sent < 0 ) FATAL;
 
-  free( data );
+  // SPDLOG_INFO( "Writing out data to output.bin" );
+  // FILE* fd_out = fopen( "output.bin", "w+" );  // O_RDWR | O_NONBLOCK );
+  // fwrite( indata_buffer, sizeof( char ), length, fd_out );
+  // fclose( fd_out );
 }
-
-// void DvbEncoder::send_metadata( FrameParameters* parms ) {
-// char metadata_value = get_metadata_value( parms );
-// char* metadata = &metadata_value;
-// SPDLOG_INFO( "Sending metadata {} (0x{:02X}) for {}. Queued: {}",
-//              (uint8_t)metadata_value, (uint8_t)metadata_value,
-//              format( parms ), this->metadata_queue->size() );
-// int bytes_written =
-//     write_from_buffer( (char*)"metadata", this->fd_metadata, metadata, 1, 0
-//     );
-// SPDLOG_DEBUG( "Sending metadata completed, bytes written: {}",
-//               bytes_written );
-// if ( bytes_written != 1 ) {
-//   SPDLOG_ERROR(
-//       "Something went wrong, expected to have sent 1 byte but driver "
-//       "confirmed "
-//       "{}",
-//       bytes_written );
-//   FATAL;
-// };
-// };
 
 void DvbEncoder::send_data( char* frame, ssize_t size ) {
   SPDLOG_DEBUG( "Sending {} bytes of data", size );
 
-  ssize_t rc =
-      write_from_buffer( (char*)"data", this->fd_outdata, frame, size, 0 );
+  ssize_t pending = size;
+  int i = 0;
+  while ( pending ) {
+    ssize_t rc =
+        write_from_buffer( (char*)"data", this->fd_outdata, frame, size, 0 );
 
-  if ( rc != (ssize_t)size ) {
-    SPDLOG_ERROR(
-        "Something went wrong, expected to have sent {} but driver confirmed "
-        "{}",
-        size, rc );
-    FATAL;
+    if ( rc < 0 ) {
+      SPDLOG_ERROR( "#{}: Error sending data: rc={}", i, rc );
+      FATAL;
+      break;
+    }
+    pending -= rc;
+    i++;
   }
-  SPDLOG_DEBUG( "Sending data completed, return code is {}", rc );
+  SPDLOG_DEBUG( "Sending data completed after {} iterations", i );
 };
-
-// int main() {
-//   // Create a socket
-//   int sock = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
-
-//   // Set the destination address
-//   struct sockaddr_in dest_addr;
-//   memset( &dest_addr, 0, sizeof( dest_addr ) );
-//   dest_addr.sin_family = AF_INET;
-//   dest_addr.sin_addr.s_addr = inet_addr( "192.168.1.100" );
-//   dest_addr.sin_port = htons( 5000 );
-
-//   // Set the data to be sent
-//   const char* data = "Hello, Ethernet!";
-//   int data_len = strlen( data );
-
-//   // Send the data
-//   sendto( sock, data, data_len, 0, (struct sockaddr*)&dest_addr,
-//           sizeof( dest_addr ) );
-
-//   // Close the socket
-//   close( sock );
-
-//   return 0;
-// }

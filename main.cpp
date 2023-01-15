@@ -1,7 +1,9 @@
 #include <sys/mman.h>
 
 #include <chrono>
+#include <cstring>
 #include <fstream>
+#include <map>
 #include <string>
 #include <thread>
 #include <vector>
@@ -77,6 +79,104 @@ FrameParameters* infer_parameters( string filename ) {
   return params;
 };
 
+// enum dvb_code_rate_t {
+// enum dvb_constellation_t {
+//
+dvb_framesize_t get_frame_size( string s ) {
+  std::map< string, dvb_framesize_t > map;
+  map = { { "NORMAL", FECFRAME_NORMAL },
+          { "SHORT", FECFRAME_SHORT },
+          { "MEDIUM", FECFRAME_MEDIUM } };
+  for ( size_t i = 0; i < s.size(); i++ ) s[ i ] = toupper( s[ i ] );
+  return map.at( s );
+}
+
+dvb_constellation_t get_constellation( string s ) {
+  std::map< string, dvb_constellation_t > map;
+  map = { { "QPSK", MOD_QPSK },
+          { "16QAM", MOD_16QAM },
+          { "64QAM", MOD_64QAM },
+          { "256QAM", MOD_256QAM },
+          { "8PSK", MOD_8PSK },
+          { "8APSK", MOD_8APSK },
+          { "16APSK", MOD_16APSK },
+          { "8_8APSK", MOD_8_8APSK },
+          { "32APSK", MOD_32APSK },
+          { "4_12_16APSK", MOD_4_12_16APSK },
+          { "4_8_4_16APSK", MOD_4_8_4_16APSK },
+          { "64APSK", MOD_64APSK },
+          { "8_16_20_20APSK", MOD_8_16_20_20APSK },
+          { "4_12_20_28APSK", MOD_4_12_20_28APSK },
+          { "128APSK", MOD_128APSK },
+          { "256APSK", MOD_256APSK },
+          { "BPSK", MOD_BPSK },
+          { "BPSK_SF2", MOD_BPSK_SF2 },
+          { "8VSB", MOD_8VSB },
+          { "OTHER", MOD_OTHER } };
+
+  for ( size_t i = 0; i < s.size(); i++ ) s[ i ] = toupper( s[ i ] );
+  return map.at( s );
+}
+
+dvb_code_rate_t get_code_rate( string s ) {
+  std::map< string, dvb_code_rate_t > map;
+
+  map = { { "1/4", C1_4 },
+          { "1/3", C1_3 },
+          { "2/5", C2_5 },
+          { "1/2", C1_2 },
+          { "3/5", C3_5 },
+          { "2/3", C2_3 },
+          { "3/4", C3_4 },
+          { "4/5", C4_5 },
+          { "5/6", C5_6 },
+          { "7/8", C7_8 },
+          { "8/9", C8_9 },
+          { "9/10", C9_10 },
+          { "13/45", C13_45 },
+          { "9/20", C9_20 },
+          { "90/180", C90_180 },
+          { "96/180", C96_180 },
+          { "11/20", C11_20 },
+          { "100/180", C100_180 },
+          { "104/180", C104_180 },
+          { "26/45", C26_45 },
+          { "18/30", C18_30 },
+          { "28/45", C28_45 },
+          { "23/36", C23_36 },
+          { "116/180", C116_180 },
+          { "20/30", C20_30 },
+          { "124/180", C124_180 },
+          { "25/36", C25_36 },
+          { "128/180", C128_180 },
+          { "13/18", C13_18 },
+          { "132/180", C132_180 },
+          { "22/30", C22_30 },
+          { "135/180", C135_180 },
+          { "140/180", C140_180 },
+          { "7/9", C7_9 },
+          { "154/180", C154_180 },
+          { "11/45", C11_45 },
+          { "4/15", C4_15 },
+          { "14/45", C14_45 },
+          { "7/15", C7_15 },
+          { "8/15", C8_15 },
+          { "32/45", C32_45 },
+          { "2/9-VLSNR", C2_9_VLSNR },
+          { "1/5-MEDIUM", C1_5_MEDIUM },
+          { "11/45-MEDIUM", C11_45_MEDIUM },
+          { "1/3-MEDIUM", C1_3_MEDIUM },
+          { "1/5-VLSNR-SF2", C1_5_VLSNR_SF2 },
+          { "11/45-VLSNR-SF2", C11_45_VLSNR_SF2 },
+          { "1/5-VLSNR", C1_5_VLSNR },
+          { "4/15-VLSNR", C4_15_VLSNR },
+          { "1/3-VLSNR", C1_3_VLSNR },
+          { "OTHER", C_OTHER } };
+
+  for ( size_t i = 0; i < s.size(); i++ ) s[ i ] = toupper( s[ i ] );
+  return map.at( s );
+}
+
 int main( int argc, char* argv[] ) {
   if ( argc < 2 ) {
     printf( "Need the filename as argument\n" );
@@ -84,8 +184,22 @@ int main( int argc, char* argv[] ) {
   };
 
   int verbose = 0;
+  FrameParameters* parms =
+      new FrameParameters{ FECFRAME_SHORT, MOD_QPSK, C1_4 };
   for ( int i = 0; i < argc; i++ ) {
     string arg = string( argv[ i ] );
+    try {
+      parms->frame_size = get_frame_size( arg );
+    } catch ( std::out_of_range ) {
+    };
+    try {
+      parms->constellation = get_constellation( arg );
+    } catch ( std::out_of_range ) {
+    };
+    try {
+      parms->code_rate = get_code_rate( arg );
+    } catch ( std::out_of_range ) {
+    };
     if ( arg == "-v" ) {
       verbose += 1;
     } else if ( arg == "-vv" ) {
@@ -94,6 +208,7 @@ int main( int argc, char* argv[] ) {
       verbose += 3;
     };
   };
+  SPDLOG_INFO( "Inferred frame parameters: {}", format( parms ) );
 
   switch ( verbose ) {
     case 0:
@@ -114,63 +229,24 @@ int main( int argc, char* argv[] ) {
 
   string filename = argv[ 1 ];
   // FrameParameters* parms = infer_parameters( filename );
-  // SPDLOG_INFO( "Inferred frame parameters: {}", format( parms ) );
-
-  int loop_count = 1;
-
-  if ( argc >= 3 ) {
-    loop_count = std::stoi( argv[ 2 ] );
-  };
 
   // TODO: setup a thread for the receiver side and make the encoder receive a
   // callback to be called when data is received
   DvbEncoder* encoder = new DvbEncoder();
 
-  std::ifstream istream( filename.c_str() );
-  string indata( ( std::istreambuf_iterator< char >( istream ) ),
-                 ( std::istreambuf_iterator< char >() ) );
-
-  SPDLOG_INFO( "Read {} bytes from \"{}\"", indata.size(), filename );
-
-  FrameParameters* parms =
-      new FrameParameters{ FECFRAME_SHORT, MOD_QPSK, C1_3 };
-  //   // infer_parameters( filename );
-  // typedef struct FrameParameters {
-  //   dvb_framesize_t frame_size;
-  //   dvb_constellation_t constellation;
-  //   dvb_code_rate_t code_rate;
-  // } FrameParameters;
-
-  thread* recv_thread;
-  recv_thread = new thread( [ & ]() {
-    SPDLOG_DEBUG( "Starting receive thread" );
-    int frame_count = 0;
-    while ( 1 ) {
-      encoder->receive_frame();
-      SPDLOG_DEBUG( "Received frame {}", frame_count );
-      frame_count++;
-    };
-
-    // uint32_t fifo_entries = 0;
-    // do {
-    //   fifo_entries = regs->read( 0x2000 );
-    //   SPDLOG_DEBUG( "FIFO entries: {}", fifo_entries );
-    // } while ( fifo_entries != 557 );
-    SPDLOG_DEBUG( "Exiting receive thread" );
+  thread* send_thread;
+  send_thread = new thread( [ & ]() {
+    SPDLOG_DEBUG( "Starting send thread" );
+    int outframes = encoder->send_from_file( parms, filename );
+    SPDLOG_INFO(
+        "Waiting for receive thread to complete, need to receive {} frames",
+        outframes );
+    SPDLOG_DEBUG( "Exiting send thread. Should received {}", outframes );
   } );
-  // recv_thread->detach();
 
-  for ( int i = 0; i < loop_count; i++ ) {
-    encoder->send_from_file( parms, filename );
-    // encoder->send_frame( 0, &indata[ 0 ], indata.size() );
-  };
-  SPDLOG_INFO( "Waiting for receive thread to complete" );
-  // std::this_thread::sleep_for( 2000ms );
-  recv_thread->join();
-  // // Setup register map
-  // RegisterMap* regs = new RegisterMap();
-
-  // SPDLOG_DEBUG( "FIFO entries: {}", regs->read( 0x2000 ) );
+  for ( ;; ) encoder->receive_frame();
+  SPDLOG_INFO( "Joining send thread" );
+  send_thread->join();
   SPDLOG_INFO( "Done" );
 
   // encoder->join();

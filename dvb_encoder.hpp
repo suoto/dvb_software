@@ -24,17 +24,20 @@ class DvbEncoder {
  public:
   void send_frame( char metadata, char* data, ssize_t length );
   // void send_from_file( char metadata, string filename );
-  void send_from_file( FrameParameters* params, string filename );
+  int send_from_file( FrameParameters* params, string filename );
   // void join( void );
   void receive_frame( void );
-  DvbEncoder();  // This is the constructor
-                 // ~DvbEncoder();  // This is the destructor: declaration
+  DvbEncoder();   // This is the constructor
+  ~DvbEncoder();  // This is the destructor: declaration
  private:
+  // int fd_h2c;
   int sock;
   struct sockaddr_storage dest_addr;
   // void send_metadata( FrameParameters* parms );
   void send_data( char* frame, ssize_t size );
+  int fd_indata = -1;
   int fd_outdata = -1;
+  char* indata_buffer = NULL;
   // int fd_metadata = -1;
   // int fd_indata = -1;
 

@@ -8,6 +8,8 @@
  * LICENSE file in the root directory of this source tree)
  */
 
+#include "dma_utils.hpp"
+
 #include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -15,9 +17,14 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "dma_utils.hpp"
+#include "spdlog/spdlog.h"
 
-int verbose = 0;
+#define FATAL                                                           \
+  do {                                                                  \
+    fprintf( stderr, "Error at line %d, file %s (%d) [%s]\n", __LINE__, \
+             __FILE__, errno, strerror( errno ) );                      \
+    exit( 1 );                                                          \
+  } while ( 0 )
 
 ssize_t read_to_buffer( char* fname, int fd, char* buffer, uint64_t size,
                         uint64_t base ) {
@@ -29,33 +36,38 @@ ssize_t read_to_buffer( char* fname, int fd, char* buffer, uint64_t size,
 
   while ( count < size ) {
     uint64_t bytes = size - count;
+    SPDLOG_TRACE( "[{}] Iteration #{}: read so far: {}", fname, loop, count );
 
     if ( bytes > RW_MAX_SIZE ) {
       bytes = RW_MAX_SIZE;
     }
 
     if ( offset ) {
+      SPDLOG_TRACE( "[{}] Iteration #{}: seek to 0x{:x}", fname, loop, offset );
       rc = lseek( fd, offset, SEEK_SET );
       if ( rc != offset ) {
-        fprintf( stderr, "%s, seek off 0x%lx != 0x%lx.\n", fname, rc, offset );
+        SPDLOG_ERROR( "[{}] seek off 0x{:x} != 0x{:x}", fname, rc, offset );
         perror( "seek file" );
+        FATAL;
         return -EIO;
       }
     }
 
     /* read data from file into memory buffer */
     rc = read( fd, buf, bytes );
+    SPDLOG_TRACE( "[{}] read {} bytes @ {}", fname, bytes, offset );
     if ( rc < 0 ) {
-      fprintf( stderr, "%s, read 0x%lx @ 0x%lx failed %ld.\n", fname, bytes,
-               offset, rc );
+      SPDLOG_ERROR( "[{}] read {} @ 0x{:x} failed with {}.", fname, bytes,
+                    offset, rc );
       perror( "read file" );
+      FATAL;
       return -EIO;
     }
 
     count += rc;
     if ( (uint64_t)rc != bytes ) {
-      fprintf( stderr, "%s, read underflow 0x%lx/0x%lx @ 0x%lx.\n", fname, rc,
-               bytes, offset );
+      SPDLOG_DEBUG( "[{}] read underflow 0x{:x}/{} @ 0x{:x}", fname, rc, bytes,
+                    offset );
       break;
     }
 
@@ -65,7 +77,7 @@ ssize_t read_to_buffer( char* fname, int fd, char* buffer, uint64_t size,
   }
 
   if ( count != size && loop )
-    fprintf( stderr, "%s, read underflow 0x%lx/0x%lx.\n", fname, count, size );
+    SPDLOG_ERROR( "[{}] read underflow {}/{}.", fname, count, size );
   return count;
 }
 
@@ -85,8 +97,9 @@ ssize_t write_from_buffer( char* fname, int fd, char* buffer, uint64_t size,
     if ( offset ) {
       rc = lseek( fd, offset, SEEK_SET );
       if ( rc != offset ) {
-        fprintf( stderr, "%s, seek off 0x%lx != 0x%lx.\n", fname, rc, offset );
+        SPDLOG_ERROR( "[{}] seek off 0x{:x} != 0x{:x}.", fname, rc, offset );
         perror( "seek file" );
+        FATAL;
         return -EIO;
       }
     }
@@ -94,16 +107,17 @@ ssize_t write_from_buffer( char* fname, int fd, char* buffer, uint64_t size,
     /* write data to file from memory buffer */
     rc = write( fd, buf, bytes );
     if ( rc < 0 ) {
-      fprintf( stderr, "%s, write 0x%lx @ 0x%lx failed %ld.\n", fname, bytes,
-               offset, rc );
+      SPDLOG_ERROR( "[{}] write 0x{:x} @ 0x{:x} failed {}", fname, bytes,
+                    offset, rc );
       perror( "write file" );
+      FATAL;
       return -EIO;
     }
 
     count += rc;
     if ( (uint64_t)rc != bytes ) {
-      fprintf( stderr, "%s, write underflow 0x%lx/0x%lx @ 0x%lx.\n", fname, rc,
-               bytes, offset );
+      SPDLOG_ERROR( "[{}] write underflow 0x{:x}/0x{:x} @ 0x{:x}.", fname, rc,
+                    bytes, offset );
       break;
     }
     buf += bytes;
@@ -113,7 +127,7 @@ ssize_t write_from_buffer( char* fname, int fd, char* buffer, uint64_t size,
   }
 
   if ( count != size && loop )
-    fprintf( stderr, "%s, write underflow 0x%lx/0x%lx.\n", fname, count, size );
+    SPDLOG_ERROR( "[{}] write underflow 0x{:x}/0x{:x}.", fname, count, size );
 
   return count;
 }
