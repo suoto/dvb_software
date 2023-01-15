@@ -22,6 +22,7 @@ _FLAGS = [
     "-I/usr/include/c++/9/",
     "-I/usr/include/x86_64-linux-gnu/c++/9/",
     "-I" + p.join(p.abspath("."), "third_party", "spdlog", "include"),
+    "-I" + p.join(p.abspath("."), "third_party", "cppzmq"),
     "-std=c++17",
 ]
 

@@ -7,6 +7,7 @@ let s:has_vim_tags = exists(':TagsGenerate') != 0
 let s:include_paths = [
       \ $PWD,
       \ $PWD . '/third_party/spdlog/include/',
+      \ $PWD . '/third_party/cppzmq',
       \ '/usr/include/c++/9/',
       \ '/usr/include/x86_64-linux-gnu/c++/9/',
       \ ]

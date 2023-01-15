@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
+#include <sys/poll.h>
 
 #include <fstream>
 #include <iomanip>
@@ -17,11 +18,7 @@
 #include "dma_utils.hpp"
 #include "dvb_types.hpp"
 #include "spdlog/spdlog.h"
-
-// #include <iostream>
-// #include <thread>
-//
-#include <sys/poll.h>
+#include "third_party/cppzmq/zmq.hpp"
 
 using std::queue;
 using std::string;
@@ -34,7 +31,9 @@ using std::vector;
 // #define MAX_FRAME_LENGTH 256 * 1024
 #define MAX_FRAME_LENGTH 86760
 
-#define SEND_UDP 0
+#define UDP_SEND 0
+#define ZMQ_SEND 1
+#define ZMQ_URL "tcp://*:5557"
 
 #define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 #define MAX( a, b ) ( ( a ) > ( b ) ? ( a ) : ( b ) )
@@ -102,13 +101,22 @@ DvbEncoder::DvbEncoder( void ) {
   posix_memalign( (void**)&this->indata_buffer, 4096 /*alignment */,
                   MAX_FRAME_LENGTH + 4096 );
 
-  this->sock = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
-  memset( &this->dest_addr, 0, sizeof( this->dest_addr ) );
-  int result = resolve( "192.168.1.135", AF_INET, "50000", &this->dest_addr );
-  if ( result != 0 ) {
-    int lasterror = errno;
-    SPDLOG_ERROR( "Error resolving address: {}", lasterror );
-    exit( 1 );
+  if ( ZMQ_SEND ) {
+    SPDLOG_INFO( "Creating ZMQ context" );
+    // zmq::context_t context;
+    this->sender = zmq::socket_t( context, ZMQ_PUSH );
+    this->sender.bind( ZMQ_URL );
+  }
+
+  if ( UDP_SEND ) {
+    this->sock = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
+    memset( &this->dest_addr, 0, sizeof( this->dest_addr ) );
+    int result = resolve( "192.168.1.135", AF_INET, "50000", &this->dest_addr );
+    if ( result != 0 ) {
+      int lasterror = errno;
+      SPDLOG_ERROR( "Error resolving address: {}", lasterror );
+      exit( 1 );
+    }
   }
 }
 
@@ -580,53 +588,55 @@ int DvbEncoder::send_from_file( FrameParameters* parms, string filename ) {
 }
 
 void DvbEncoder::receive_frame( void ) {
-  SPDLOG_DEBUG( "Receiving frame" );
+  SPDLOG_INFO( "Receiving frame" );
 
   ssize_t length = read_to_buffer( (char*)XDMA_C2H_DATA_DEV, this->fd_indata,
                                    this->indata_buffer, MAX_FRAME_LENGTH, 0 );
-  SPDLOG_DEBUG( "Received {} bytes", length );
+  SPDLOG_INFO( "Received {} bytes", length );
   SPDLOG_TRACE( "Data received:\n{}", format( this->indata_buffer, length ) );
   if ( length < 0 ) {
     SPDLOG_ERROR( "Error reading data: {}", length );
     FATAL;
   };
 
-  return;
-
-  if ( SEND_UDP ) {
-    SPDLOG_DEBUG( "Sending out data via UDP" );
-    // Send the data
-    int udp_bytes_sent;
-    int udp_bytes_remaining = length;
-    while ( udp_bytes_remaining ) {
-      udp_bytes_sent = sendto( this->sock, this->indata_buffer,
-                               MIN( length, MAX_UDP_PAYLOAD_LENGTH ), 0,
-                               (struct sockaddr*)&this->dest_addr,
-                               sizeof( this->dest_addr ) );
-
-      if ( udp_bytes_sent < 0 ) {
-        SPDLOG_ERROR( "Sending UDP data failed" );
-        FATAL;
-      }
-
-      udp_bytes_remaining = MAX( udp_bytes_remaining - udp_bytes_sent, 0 );
-
-      // SPDLOG_DEBUG( "UDP bytes sent: {}, remaining {}", udp_bytes_sent,
-      //               udp_bytes_remaining );
-    }
+  if ( UDP_SEND ) {
+    this->udp_send( this->indata_buffer,
+                    MIN( length, MAX_UDP_PAYLOAD_LENGTH ) );
   };
 
-  // udp_bytes_sent =
-  //     sendto( this->sock, indata_buffer, length, 0, (struct
-  //     sockaddr*)&this->dest_addr,
-  //             sizeof( this->dest_addr ) );
-  // SPDLOG_INFO( "UDP bytes sent: {}", udp_bytes_sent );
-  // if ( udp_bytes_sent < 0 ) FATAL;
+  if ( ZMQ_SEND ) {
+    this->zmq_send( this->indata_buffer,
+                    MIN( length, MAX_UDP_PAYLOAD_LENGTH ) );
+  };
+};
 
-  // SPDLOG_INFO( "Writing out data to output.bin" );
-  // FILE* fd_out = fopen( "output.bin", "w+" );  // O_RDWR | O_NONBLOCK );
-  // fwrite( indata_buffer, sizeof( char ), length, fd_out );
-  // fclose( fd_out );
+void DvbEncoder::zmq_send( char* data, ssize_t length ) {
+  SPDLOG_DEBUG( "Sending {} bytes via ZMQ", length );
+  zmq::message_t message( data, length );
+  this->sender.send( message, zmq::send_flags::none );
+}
+
+ssize_t DvbEncoder::udp_send( char* data, ssize_t length ) {
+  SPDLOG_DEBUG( "Sending {} bytes via UDP", length );
+  // Send the data
+  int udp_bytes_sent;
+  int udp_bytes_remaining = length;
+  while ( udp_bytes_remaining ) {
+    udp_bytes_sent =
+        sendto( this->sock, data, MIN( length, MAX_UDP_PAYLOAD_LENGTH ), 0,
+                (struct sockaddr*)&this->dest_addr, sizeof( this->dest_addr ) );
+
+    if ( udp_bytes_sent < 0 ) {
+      SPDLOG_ERROR( "Sending UDP data failed" );
+      FATAL;
+    }
+
+    udp_bytes_remaining = MAX( udp_bytes_remaining - udp_bytes_sent, 0 );
+
+    // SPDLOG_DEBUG( "UDP bytes sent: {}, remaining {}", udp_bytes_sent,
+    //               udp_bytes_remaining );
+  }
+  return length;
 }
 
 void DvbEncoder::send_data( char* frame, ssize_t size ) {

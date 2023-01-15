@@ -11,6 +11,7 @@
 
 #include "dvb_types.hpp"
 #include "spdlog/spdlog.h"
+#include "third_party/cppzmq/zmq.hpp"
 
 using std::queue;
 using std::string;
@@ -38,6 +39,11 @@ class DvbEncoder {
   int fd_indata = -1;
   int fd_outdata = -1;
   char* indata_buffer = NULL;
+
+  ssize_t udp_send( char* data, ssize_t length );
+  void zmq_send( char* data, ssize_t length );
+  zmq::context_t context;
+  zmq::socket_t sender;
   // int fd_metadata = -1;
   // int fd_indata = -1;
 
