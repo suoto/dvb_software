@@ -128,290 +128,68 @@ DvbEncoder::~DvbEncoder( void ) {
 };
 
 char get_metadata_value( FrameParameters* parms ) {
-  if ( parms->frame_size == FECFRAME_SHORT ) {
-    if ( parms->constellation == MOD_QPSK ) {
-      if ( parms->code_rate == C1_4 ) {
-        return 0x00;
-      };
-      if ( parms->code_rate == C1_3 ) {
-        return 0x01;
-      };
-      if ( parms->code_rate == C2_5 ) {
-        return 0x02;
-      };
-      if ( parms->code_rate == C1_2 ) {
-        return 0x03;
-      };
-      if ( parms->code_rate == C3_5 ) {
-        return 0x04;
-      };
-      if ( parms->code_rate == C2_3 ) {
-        return 0x05;
-      };
-      if ( parms->code_rate == C3_4 ) {
-        return 0x06;
-      };
-      if ( parms->code_rate == C4_5 ) {
-        return 0x07;
-      };
-      if ( parms->code_rate == C5_6 ) {
-        return 0x08;
-      };
-      if ( parms->code_rate == C8_9 ) {
-        return 0x09;
-      };
-      if ( parms->code_rate == C9_10 ) {
-        return 0x0A;
-      };
-    };
-    if ( parms->constellation == MOD_8PSK ) {
-      if ( parms->code_rate == C1_4 ) {
-        return 0x0B;
-      };
-      if ( parms->code_rate == C1_3 ) {
-        return 0x0C;
-      };
-      if ( parms->code_rate == C2_5 ) {
-        return 0x0D;
-      };
-      if ( parms->code_rate == C1_2 ) {
-        return 0x0E;
-      };
-      if ( parms->code_rate == C3_5 ) {
-        return 0x0F;
-      };
-      if ( parms->code_rate == C2_3 ) {
-        return 0x10;
-      };
-      if ( parms->code_rate == C3_4 ) {
-        return 0x11;
-      };
-      if ( parms->code_rate == C4_5 ) {
-        return 0x12;
-      };
-      if ( parms->code_rate == C5_6 ) {
-        return 0x13;
-      };
-      if ( parms->code_rate == C8_9 ) {
-        return 0x14;
-      };
-      if ( parms->code_rate == C9_10 ) {
-        return 0x15;
-      };
-    };
-    if ( parms->constellation == MOD_16APSK ) {
-      if ( parms->code_rate == C1_4 ) {
-        return 0x16;
-      };
-      if ( parms->code_rate == C1_3 ) {
-        return 0x17;
-      };
-      if ( parms->code_rate == C2_5 ) {
-        return 0x18;
-      };
-      if ( parms->code_rate == C1_2 ) {
-        return 0x19;
-      };
-      if ( parms->code_rate == C3_5 ) {
-        return 0x1A;
-      };
-      if ( parms->code_rate == C2_3 ) {
-        return 0x1B;
-      };
-      if ( parms->code_rate == C3_4 ) {
-        return 0x1C;
-      };
-      if ( parms->code_rate == C4_5 ) {
-        return 0x1D;
-      };
-      if ( parms->code_rate == C5_6 ) {
-        return 0x1E;
-      };
-      if ( parms->code_rate == C8_9 ) {
-        return 0x1F;
-      };
-      if ( parms->code_rate == C9_10 ) {
-        return 0x20;
-      };
-    };
-    if ( parms->constellation == MOD_32APSK ) {
-      if ( parms->code_rate == C1_4 ) {
-        return 0x21;
-      };
-      if ( parms->code_rate == C1_3 ) {
-        return 0x22;
-      };
-      if ( parms->code_rate == C2_5 ) {
-        return 0x23;
-      };
-      if ( parms->code_rate == C1_2 ) {
-        return 0x24;
-      };
-      if ( parms->code_rate == C3_5 ) {
-        return 0x25;
-      };
-      if ( parms->code_rate == C2_3 ) {
-        return 0x26;
-      };
-      if ( parms->code_rate == C3_4 ) {
-        return 0x27;
-      };
-      if ( parms->code_rate == C4_5 ) {
-        return 0x28;
-      };
-      if ( parms->code_rate == C5_6 ) {
-        return 0x29;
-      };
-      if ( parms->code_rate == C8_9 ) {
-        return 0x2A;
-      };
-      if ( parms->code_rate == C9_10 ) {
-        return 0x2B;
-      };
-    }
-  };
-  if ( parms->frame_size == FECFRAME_NORMAL ) {
-    if ( parms->constellation == MOD_QPSK ) {
-      if ( parms->code_rate == C1_4 ) {
-        return 0x2C;
-      };
-      if ( parms->code_rate == C1_3 ) {
-        return 0x2D;
-      };
-      if ( parms->code_rate == C2_5 ) {
-        return 0x2E;
-      };
-      if ( parms->code_rate == C1_2 ) {
-        return 0x2F;
-      };
-      if ( parms->code_rate == C3_5 ) {
-        return 0x30;
-      };
-      if ( parms->code_rate == C2_3 ) {
-        return 0x31;
-      };
-      if ( parms->code_rate == C3_4 ) {
-        return 0x32;
-      };
-      if ( parms->code_rate == C4_5 ) {
-        return 0x33;
-      };
-      if ( parms->code_rate == C5_6 ) {
-        return 0x34;
-      };
-      if ( parms->code_rate == C8_9 ) {
-        return 0x35;
-      };
-      if ( parms->code_rate == C9_10 ) {
-        return 0x36;
-      };
-    };
-    if ( parms->constellation == MOD_8PSK ) {
-      if ( parms->code_rate == C1_4 ) {
-        return 0x37;
-      };
-      if ( parms->code_rate == C1_3 ) {
-        return 0x38;
-      };
-      if ( parms->code_rate == C2_5 ) {
-        return 0x39;
-      };
-      if ( parms->code_rate == C1_2 ) {
-        return 0x3A;
-      };
-      if ( parms->code_rate == C3_5 ) {
-        return 0x3B;
-      };
-      if ( parms->code_rate == C2_3 ) {
-        return 0x3C;
-      };
-      if ( parms->code_rate == C3_4 ) {
-        return 0x3D;
-      };
-      if ( parms->code_rate == C4_5 ) {
-        return 0x3E;
-      };
-      if ( parms->code_rate == C5_6 ) {
-        return 0x3F;
-      };
-      if ( parms->code_rate == C8_9 ) {
-        return 0x40;
-      };
-      if ( parms->code_rate == C9_10 ) {
-        return 0x41;
-      };
-    };
-    if ( parms->constellation == MOD_16APSK ) {
-      if ( parms->code_rate == C1_4 ) {
-        return 0x42;
-      };
-      if ( parms->code_rate == C1_3 ) {
-        return 0x43;
-      };
-      if ( parms->code_rate == C2_5 ) {
-        return 0x44;
-      };
-      if ( parms->code_rate == C1_2 ) {
-        return 0x45;
-      };
-      if ( parms->code_rate == C3_5 ) {
-        return 0x46;
-      };
-      if ( parms->code_rate == C2_3 ) {
-        return 0x47;
-      };
-      if ( parms->code_rate == C3_4 ) {
-        return 0x48;
-      };
-      if ( parms->code_rate == C4_5 ) {
-        return 0x49;
-      };
-      if ( parms->code_rate == C5_6 ) {
-        return 0x4A;
-      };
-      if ( parms->code_rate == C8_9 ) {
-        return 0x4B;
-      };
-      if ( parms->code_rate == C9_10 ) {
-        return 0x4C;
-      };
-    };
-    if ( parms->constellation == MOD_32APSK ) {
-      if ( parms->code_rate == C1_4 ) {
-        return 0x4D;
-      };
-      if ( parms->code_rate == C1_3 ) {
-        return 0x4E;
-      };
-      if ( parms->code_rate == C2_5 ) {
-        return 0x4F;
-      };
-      if ( parms->code_rate == C1_2 ) {
-        return 0x50;
-      };
-      if ( parms->code_rate == C3_5 ) {
-        return 0x51;
-      };
-      if ( parms->code_rate == C2_3 ) {
-        return 0x52;
-      };
-      if ( parms->code_rate == C3_4 ) {
-        return 0x53;
-      };
-      if ( parms->code_rate == C4_5 ) {
-        return 0x54;
-      };
-      if ( parms->code_rate == C5_6 ) {
-        return 0x55;
-      };
-      if ( parms->code_rate == C8_9 ) {
-        return 0x56;
-      };
-      if ( parms->code_rate == C9_10 ) {
-        return 0x57;
-      };
-    };
-  };
+  char result = 0;
+  if ( parms->frame_size == FECFRAME_SHORT ) result |= 1 << 6;
+  if ( parms->pilots ) result |= 1 << 5;
+
+  if ( parms->constellation == MOD_QPSK & parms->code_rate == C1_4 )
+    result |= 1;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C1_3 )
+    result |= 2;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C2_5 )
+    result |= 3;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C1_2 )
+    result |= 4;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C3_5 )
+    result |= 5;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C2_3 )
+    result |= 6;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C3_4 )
+    result |= 7;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C4_5 )
+    result |= 8;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C5_6 )
+    result |= 9;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C8_9 )
+    result |= 10;
+  else if ( parms->constellation == MOD_QPSK & parms->code_rate == C9_10 )
+    result |= 11;
+  else if ( parms->constellation == MOD_8PSK & parms->code_rate == C3_5 )
+    result |= 12;
+  else if ( parms->constellation == MOD_8PSK & parms->code_rate == C2_3 )
+    result |= 13;
+  else if ( parms->constellation == MOD_8PSK & parms->code_rate == C3_4 )
+    result |= 14;
+  else if ( parms->constellation == MOD_8PSK & parms->code_rate == C5_6 )
+    result |= 15;
+  else if ( parms->constellation == MOD_8PSK & parms->code_rate == C8_9 )
+    result |= 16;
+  else if ( parms->constellation == MOD_8PSK & parms->code_rate == C9_10 )
+    result |= 17;
+  else if ( parms->constellation == MOD_16APSK & parms->code_rate == C2_3 )
+    result |= 18;
+  else if ( parms->constellation == MOD_16APSK & parms->code_rate == C3_4 )
+    result |= 19;
+  else if ( parms->constellation == MOD_16APSK & parms->code_rate == C4_5 )
+    result |= 20;
+  else if ( parms->constellation == MOD_16APSK & parms->code_rate == C5_6 )
+    result |= 21;
+  else if ( parms->constellation == MOD_16APSK & parms->code_rate == C8_9 )
+    result |= 22;
+  else if ( parms->constellation == MOD_16APSK & parms->code_rate == C9_10 )
+    result |= 23;
+  else if ( parms->constellation == MOD_32APSK & parms->code_rate == C3_4 )
+    result |= 24;
+  else if ( parms->constellation == MOD_32APSK & parms->code_rate == C4_5 )
+    result |= 25;
+  else if ( parms->constellation == MOD_32APSK & parms->code_rate == C5_6 )
+    result |= 26;
+  else if ( parms->constellation == MOD_32APSK & parms->code_rate == C8_9 )
+    result |= 27;
+  else if ( parms->constellation == MOD_32APSK & parms->code_rate == C9_10 )
+    result |= 28;
+
+  return result;
 
   SPDLOG_ERROR(
       "Unable to translate metadata value for framesize={}, "
@@ -554,21 +332,23 @@ string format( std::vector< char >* data, size_t size ) {
 
 int DvbEncoder::send_from_file( FrameParameters* parms, string filename ) {
   char metadata = get_metadata_value( parms );
-  ssize_t bb_frame_length = get_bb_frame_length( parms ) + 4;
+  ssize_t bb_frame_length = get_bb_frame_length( parms ) + 2;
+  // ssize_t bb_frame_length = 4096;
   SPDLOG_INFO( "Metadata value for {}: 0x{:2x} / {:d}. Frame length is {}",
                format( parms ), metadata, metadata, bb_frame_length );
 
   std::ifstream istream( filename.c_str(), std::ifstream::binary );
   std::vector< char > buffer( bb_frame_length, 0 );
 
-  for ( auto i = 0; i < 4; i++ ) buffer[ i ] = metadata;
+  buffer[ 0 ] = 0xB8;
+  buffer[ 1 ] = metadata;
   std::streamsize bytes_read = 0;
   int outframes = 0;
   while ( !istream.eof() ) {
     // First pass has metadata inserted as first byte of the buffer
-    istream.read( buffer.data() + 4, buffer.size() - 4 );
+    istream.read( buffer.data() + 2, buffer.size() - 2 );
     bytes_read += istream.gcount();
-    int frame_size = istream.gcount() + 4;
+    int frame_size = istream.gcount() + 2;
 
     SPDLOG_DEBUG( "[{}] {}: read {} bytes, total {}", outframes, filename,
                   istream.gcount(), bytes_read );

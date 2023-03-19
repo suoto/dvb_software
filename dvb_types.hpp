@@ -99,6 +99,7 @@ typedef struct FrameParameters {
   dvb_framesize_t frame_size;
   dvb_constellation_t constellation;
   dvb_code_rate_t code_rate;
+  bool pilots;
 } FrameParameters;
 
 const std::string format( FrameParameters* parms );
